@@ -1,0 +1,15 @@
+django==4.2.21
+djangorestframework==3.15.2
+celery[redis]==5.3.6
+praw==7.7.1
+litellm==1.40.0
+sentence-transformers==3.0.1
+scikit-learn==1.5.1
+numpy==1.26.4
+psycopg2-binary==2.9.9
+redis==5.0.7
+pyyaml==6.0.1
+python-dotenv==1.0.1
+pytest==8.2.2
+pytest-django==4.8.0
+pytest-mock==3.14.0

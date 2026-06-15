@@ -1,0 +1,8 @@
+llms:
+  product_understanding: "ollama/llama3.2"
+  aspect_extraction: "gemini/gemini-2.0-flash"
+  summarization: "ollama/llama3.2"
+
+embeddings:
+  provider: "local"
+  model: "all-MiniLM-L6-v2"
