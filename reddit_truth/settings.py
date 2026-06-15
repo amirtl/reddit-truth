@@ -1,12 +1,9 @@
-import os
 from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv()
+from .env_config import env
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-change-in-production")
-DEBUG = os.environ.get("DEBUG", "False") == "True"
+SECRET_KEY = env.secret_key
+DEBUG = env.debug
 ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
@@ -53,14 +50,14 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": "postgres",
         "USER": "postgres",
-        "PASSWORD": os.environ.get("DB_PASSWORD", ""),
-        "HOST": os.environ.get("DB_HOST", "localhost"),
-        "PORT": os.environ.get("DB_PORT", "5432"),
+        "PASSWORD": env.db_password,
+        "HOST": env.db_host,
+        "PORT": env.db_port,
     }
 }
 
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-CELERY_BROKER_URL = REDIS_URL
+CELERY_BROKER_URL = env.redis_url
+REDIS_URL = env.redis_url
 CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_TASK_SERIALIZER = "json"
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -68,7 +65,7 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": REDIS_URL,
+        "LOCATION": env.redis_url,
     }
 }
 
