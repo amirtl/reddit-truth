@@ -71,6 +71,7 @@ class AspectSummary(models.Model):
     recent_trend = models.CharField(max_length=20, choices=TREND_CHOICES)
     headline = models.TextField()
     detail = models.TextField()
+    trend_note = models.TextField(default="", blank=True)
     generated_at = models.DateTimeField(auto_now_add=True)
 
 
