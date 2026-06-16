@@ -14,16 +14,20 @@ class EmbedderClusterer:
         if not claims:
             return []
         if len(claims) == 1:
-            c = claims[0]
-            pos = 1 if c.sentiment == "positive" else 0
-            neg = 1 if c.sentiment == "negative" else 0
-            return [Cluster(label=c.aspect, claims=claims, positive_count=pos, negative_count=neg)]
+            return [self._build_cluster(claims)]
 
+        embeddings = self._embed(claims)
+        labels = self._cluster(embeddings)
+        labels = self._reassign_noise(embeddings, labels, len(claims))
+        return self._build_clusters(claims, labels)
+
+    def _embed(self, claims: list[AspectClaim]) -> np.ndarray:
         texts = [f"{c.aspect}: {c.quote}" for c in claims]
-        embeddings = self.model.encode(texts)
+        return self.model.encode(texts)
 
-        min_cluster_size = max(2, int(len(claims) * 0.01))
-        labels = HDBSCAN(
+    def _cluster(self, embeddings: np.ndarray) -> np.ndarray:
+        min_cluster_size = max(2, int(len(embeddings) * 0.01))
+        return HDBSCAN(
             min_cluster_size=min_cluster_size,
             min_samples=1,
             metric="cosine",
@@ -31,34 +35,31 @@ class EmbedderClusterer:
             allow_single_cluster=True,
         ).fit_predict(embeddings)
 
-        # reassign noise points (label == -1) to their nearest cluster
-        if -1 in labels and (labels != -1).any():
-            noise_mask = labels == -1
-            core_mask = ~noise_mask
-            nn = NearestNeighbors(n_neighbors=1, metric="cosine")
-            nn.fit(embeddings[core_mask])
-            _, indices = nn.kneighbors(embeddings[noise_mask])
-            labels[noise_mask] = labels[core_mask][indices.flatten()]
-
-        # if everything is noise (all -1), put everything in one cluster
+    def _reassign_noise(self, embeddings: np.ndarray, labels: np.ndarray, n: int) -> np.ndarray:
         if (labels == -1).all():
-            labels = np.zeros(len(claims), dtype=int)
+            return np.zeros(n, dtype=int)
+        if -1 not in labels:
+            return labels
+        noise_mask = labels == -1
+        core_mask = ~noise_mask
+        nn = NearestNeighbors(n_neighbors=1, metric="cosine")
+        nn.fit(embeddings[core_mask])
+        _, indices = nn.kneighbors(embeddings[noise_mask])
+        labels[noise_mask] = labels[core_mask][indices.flatten()]
+        return labels
 
+    def _build_clusters(self, claims: list[AspectClaim], labels: np.ndarray) -> list[Cluster]:
         cluster_map: dict[int, list[AspectClaim]] = {}
         for claim, label in zip(claims, labels):
             cluster_map.setdefault(int(label), []).append(claim)
-
-        clusters = []
-        for cluster_claims in cluster_map.values():
-            aspects = [c.aspect for c in cluster_claims]
-            label = max(set(aspects), key=aspects.count)
-            positive = sum(1 for c in cluster_claims if c.sentiment == "positive")
-            negative = sum(1 for c in cluster_claims if c.sentiment == "negative")
-            clusters.append(Cluster(
-                label=label,
-                claims=cluster_claims,
-                positive_count=positive,
-                negative_count=negative,
-            ))
-
+        clusters = [self._build_cluster(cluster_claims) for cluster_claims in cluster_map.values()]
         return sorted(clusters, key=lambda c: len(c.claims), reverse=True)
+
+    def _build_cluster(self, claims: list[AspectClaim]) -> Cluster:
+        aspects = [c.aspect for c in claims]
+        return Cluster(
+            label=max(set(aspects), key=aspects.count),
+            claims=claims,
+            positive_count=sum(1 for c in claims if c.sentiment == "positive"),
+            negative_count=sum(1 for c in claims if c.sentiment == "negative"),
+        )
