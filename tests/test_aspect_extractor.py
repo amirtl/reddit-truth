@@ -1,6 +1,7 @@
 import json
 import pytest
 from datetime import datetime
+from unittest.mock import MagicMock
 from pipeline.config import AppConfig, LLMConfig, EmbeddingConfig
 from pipeline.aspect_extractor import AspectExtractor
 from pipeline.types import RawComment, AspectClaim
@@ -79,3 +80,27 @@ def test_includes_comment_ids_in_prompt(config, mocker):
 
     prompt = mock_completion.call_args.kwargs["messages"][0]["content"]
     assert "abc123" in prompt
+
+
+def test_comment_ids_correctly_attributed_across_batches(config, mocker):
+    # simulate two batches: first returns claims for batch-1 comments,
+    # second returns claims for batch-2 comments
+    batch1_response = {"claims": [
+        {"comment_id": "c0", "aspect": "battery", "sentiment": "positive", "quote": "great battery"},
+    ]}
+    batch2_response = {"claims": [
+        {"comment_id": "c15", "aspect": "ANC", "sentiment": "negative", "quote": "weak ANC"},
+    ]}
+    mock_completion = mocker.patch("pipeline.aspect_extractor.litellm.completion")
+    mock_completion.side_effect = [
+        MagicMock(**{"choices": [MagicMock(**{"message.content": json.dumps(batch1_response)})]}),
+        MagicMock(**{"choices": [MagicMock(**{"message.content": json.dumps(batch2_response)})]}),
+    ]
+
+    extractor = AspectExtractor(config)
+    comments = [make_comment(f"c{i}", f"Comment {i} about this product quality") for i in range(16)]
+    result = extractor.run(comments)
+
+    ids = [r.comment_id for r in result]
+    assert "c0" in ids
+    assert "c15" in ids

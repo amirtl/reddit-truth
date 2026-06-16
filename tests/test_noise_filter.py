@@ -38,3 +38,20 @@ def test_mixed_batch_filters_correctly(sample_comments):
     assert "c5" not in ids   # "lol" is too short
     assert "c1" in ids
     assert "c2" in ids
+
+
+def test_word_count_boundary():
+    f = NoiseFilter()
+    nine_words  = make_comment("a", "one two three four five six seven eight nine")
+    ten_words   = make_comment("b", "one two three four five six seven eight nine ten")
+    assert f.run([nine_words]) == []
+    assert len(f.run([ten_words])) == 1
+
+
+def test_score_boundary():
+    f = NoiseFilter()
+    text = "one two three four five six seven eight nine ten"
+    at_limit    = make_comment("a", text, score=-5)
+    below_limit = make_comment("b", text, score=-6)
+    assert len(f.run([at_limit])) == 1
+    assert f.run([below_limit]) == []

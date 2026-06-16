@@ -74,3 +74,36 @@ def test_run_maps_comment_fields_correctly(product_info, mocker):
     assert results[0].text == "Great sound quality overall"
     assert results[0].score == 55
     assert results[0].post_url == "https://reddit.com/r/headphones/comments/abc"
+
+
+def test_replace_more_is_called(product_info, mocker):
+    mock_submission = MagicMock()
+    mock_submission.url = "https://reddit.com/r/headphones/comments/abc"
+    mock_submission.comments.list.return_value = []
+
+    mock_reddit = mocker.patch("pipeline.scraper.praw.Reddit")
+    mock_reddit.return_value.subreddit.return_value.search.return_value = [mock_submission]
+
+    RedditScraper("fake_id", "fake_secret", "fake_agent").run(product_info, limit=10)
+
+    mock_submission.comments.replace_more.assert_called_once_with(limit=0)
+
+
+def test_only_uses_first_three_search_terms(mocker):
+    product = ProductInfo(
+        canonical_id="test",
+        canonical_name="Test",
+        category="electronics",
+        search_terms=["term1", "term2", "term3", "term4", "term5"],
+        subreddits=["gadgets"],
+    )
+    mock_reddit = mocker.patch("pipeline.scraper.praw.Reddit")
+    mock_search = mock_reddit.return_value.subreddit.return_value.search
+    mock_search.return_value = []
+
+    RedditScraper("fake_id", "fake_secret", "fake_agent").run(product, limit=10)
+
+    assert mock_search.call_count == 3
+    searched_terms = [call.args[0] for call in mock_search.call_args_list]
+    assert "term4" not in searched_terms
+    assert "term5" not in searched_terms
