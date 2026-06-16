@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from pipeline.runner import PipelineRunner
 from pipeline.types import (
     ProductInfo, RawComment, AspectClaim, Cluster, QuantifiedAspect, AspectSummary,
+    PipelineResult,
 )
 
 
@@ -50,10 +51,12 @@ def make_runner(mocker, *, claims=None, summaries=None):
 
 # ── structural / orchestration tests ────────────────────────────────────────────
 
-def test_returns_summarizer_output(mocker):
+def test_returns_pipeline_result_with_product_and_summaries(mocker):
     runner, ctx = make_runner(mocker)
     result = runner.run("Sony WH-1000XM5")
-    assert result is ctx["summaries"]
+    assert isinstance(result, PipelineResult)
+    assert result.product is ctx["product"]
+    assert result.summaries is ctx["summaries"]
 
 
 def test_data_flows_between_stages(mocker):
@@ -76,7 +79,10 @@ def test_short_circuits_when_no_claims(mocker):
     runner, ctx = make_runner(mocker, claims=[])
     result = runner.run("Obscure Product 9000")
 
-    assert result == []
+    # still returns the product so the caller can say "no opinions for <product>"
+    assert isinstance(result, PipelineResult)
+    assert result.product is ctx["product"]
+    assert result.summaries == []
     # the expensive / pointless downstream stages must NOT run
     ctx["embedder_clusterer"].run.assert_not_called()
     ctx["quantifier"].run.assert_not_called()
@@ -108,4 +114,4 @@ def test_works_without_progress_callback(mocker):
     runner, ctx = make_runner(mocker)
     # should not raise
     result = runner.run("Sony WH-1000XM5")
-    assert result is ctx["summaries"]
+    assert result.summaries is ctx["summaries"]

@@ -1,5 +1,5 @@
 from typing import Callable
-from .types import AspectSummary
+from .types import PipelineResult
 
 ProgressCallback = Callable[[str], None]
 
@@ -31,7 +31,7 @@ class PipelineRunner:
         self.quantifier = quantifier
         self.summarizer = summarizer
 
-    def run(self, raw_query: str, progress_callback: ProgressCallback | None = None) -> list[AspectSummary]:
+    def run(self, raw_query: str, progress_callback: ProgressCallback | None = None) -> PipelineResult:
         report = progress_callback or (lambda stage: None)
 
         report("understanding")
@@ -48,8 +48,9 @@ class PipelineRunner:
 
         # No aspects discussed → a valid outcome, not an error. Stop here and let
         # the caller tell the user "no opinions found" instead of doing empty work.
+        # We still return the product so the caller can name it in that message.
         if not claims:
-            return []
+            return PipelineResult(product=product, summaries=[])
 
         report("clustering")
         clusters = self.embedder_clusterer.run(claims)
@@ -58,4 +59,5 @@ class PipelineRunner:
         aspects = self.quantifier.run(clusters, comments)
 
         report("summarizing")
-        return self.summarizer.run(aspects, clusters)
+        summaries = self.summarizer.run(aspects, clusters)
+        return PipelineResult(product=product, summaries=summaries)

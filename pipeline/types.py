@@ -57,3 +57,15 @@ class AspectSummary:
     headline: str
     detail: str
     trend_note: str = ""
+
+
+@dataclass
+class PipelineResult:
+    """Final output of a pipeline run: the resolved product plus its summaries.
+
+    Carrying the product (not just the summaries) lets the caller persist the
+    product and report a meaningful "no opinions found" even when summaries
+    is empty.
+    """
+    product: ProductInfo
+    summaries: list[AspectSummary]
