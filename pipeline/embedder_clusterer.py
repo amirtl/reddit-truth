@@ -1,6 +1,7 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from sklearn.cluster import MeanShift, estimate_bandwidth
+from sklearn.cluster import HDBSCAN
+from sklearn.neighbors import NearestNeighbors
 from .types import AspectClaim, Cluster
 from .config import AppConfig
 
@@ -12,17 +13,36 @@ class EmbedderClusterer:
     def run(self, claims: list[AspectClaim]) -> list[Cluster]:
         if not claims:
             return []
+        if len(claims) == 1:
+            c = claims[0]
+            pos = 1 if c.sentiment == "positive" else 0
+            neg = 1 if c.sentiment == "negative" else 0
+            return [Cluster(label=c.aspect, claims=claims, positive_count=pos, negative_count=neg)]
 
         texts = [f"{c.aspect}: {c.quote}" for c in claims]
         embeddings = self.model.encode(texts)
 
-        bandwidth = estimate_bandwidth(
-            embeddings, quantile=0.3, n_samples=min(len(embeddings), 500)
-        )
-        if bandwidth < 0.9:
-            bandwidth = 0.9
+        min_cluster_size = max(2, int(len(claims) * 0.01))
+        labels = HDBSCAN(
+            min_cluster_size=min_cluster_size,
+            min_samples=1,
+            metric="cosine",
+            cluster_selection_method="eom",
+            allow_single_cluster=True,
+        ).fit_predict(embeddings)
 
-        labels = MeanShift(bandwidth=bandwidth, bin_seeding=False).fit_predict(embeddings)
+        # reassign noise points (label == -1) to their nearest cluster
+        if -1 in labels and (labels != -1).any():
+            noise_mask = labels == -1
+            core_mask = ~noise_mask
+            nn = NearestNeighbors(n_neighbors=1, metric="cosine")
+            nn.fit(embeddings[core_mask])
+            _, indices = nn.kneighbors(embeddings[noise_mask])
+            labels[noise_mask] = labels[core_mask][indices.flatten()]
+
+        # if everything is noise (all -1), put everything in one cluster
+        if (labels == -1).all():
+            labels = np.zeros(len(claims), dtype=int)
 
         cluster_map: dict[int, list[AspectClaim]] = {}
         for claim, label in zip(claims, labels):
