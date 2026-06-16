@@ -54,3 +54,17 @@ def test_sorted_by_claim_count(config, mixed_claims):
     result = ec.run(mixed_claims)
     counts = [len(c.claims) for c in result]
     assert counts == sorted(counts, reverse=True)
+
+
+def test_groups_semantically_similar_claims_together(config, mixed_claims):
+    ec = EmbedderClusterer(config)
+    result = ec.run(mixed_claims)
+
+    battery_cluster = next(c for c in result if "battery" in c.label.lower())
+    anc_cluster = next(c for c in result if "anc" in c.label.lower())
+
+    battery_ids = {claim.comment_id for claim in battery_cluster.claims}
+    anc_ids = {claim.comment_id for claim in anc_cluster.claims}
+
+    assert {"c1", "c2", "c3"} == battery_ids
+    assert {"c4", "c5"} == anc_ids

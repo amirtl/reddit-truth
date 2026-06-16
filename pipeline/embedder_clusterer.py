@@ -19,10 +19,10 @@ class EmbedderClusterer:
         bandwidth = estimate_bandwidth(
             embeddings, quantile=0.3, n_samples=min(len(embeddings), 500)
         )
-        if bandwidth == 0:
-            bandwidth = 0.5
+        if bandwidth < 0.9:
+            bandwidth = 0.9
 
-        labels = MeanShift(bandwidth=bandwidth, bin_seeding=True).fit_predict(embeddings)
+        labels = MeanShift(bandwidth=bandwidth, bin_seeding=False).fit_predict(embeddings)
 
         cluster_map: dict[int, list[AspectClaim]] = {}
         for claim, label in zip(claims, labels):
