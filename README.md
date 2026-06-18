@@ -127,27 +127,27 @@ Environment variables are validated at startup via Pydantic Settings. See `.env.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/analyze/` | Submit a product query |
-| `GET` | `/api/jobs/{job_id}/` | Poll job status (fallback) |
-| `GET` | `/api/products/{canonical_id}/` | Get full analysis |
+| `POST` | `/api/jobs/` | Submit a product query → dispatches the pipeline |
+| `GET` | `/api/jobs/{id}/` | Poll job status / progress |
+| `GET` | `/api/products/{canonical_id}/summaries/` | Fetch the aspect summaries |
 
 **Example:**
 
 ```bash
-# Submit a query
-curl -X POST http://localhost:8000/api/analyze/ \
+# Submit a query (returns 202 Accepted — work runs in the background)
+curl -X POST http://localhost:8000/api/jobs/ \
   -H "Content-Type: application/json" \
   -d '{"query": "Sony WH-1000XM5"}'
 
 # Response
-{"job_id": "abc-123", "cached": false, "canonical_id": null}
+{"job_id": "a3f9c2e1...", "status": "pending"}
 
-# Check status
-curl http://localhost:8000/api/jobs/abc-123/
-{"status": "running", "progress": 45, "message": "Extracting opinions from 240 comments..."}
+# Poll status until done/failed
+curl http://localhost:8000/api/jobs/a3f9c2e1.../
+{"status": "running", "progress": 0, "status_message": "extracting", ...}
 
-# Get results
-curl http://localhost:8000/api/products/sony-wh-1000xm5/
+# Fetch the summaries once the job's canonical_id is set
+curl http://localhost:8000/api/products/sony-wh-1000xm5/summaries/
 ```
 
 ---
@@ -160,6 +160,42 @@ make test-fast      # skip slow embedding tests
 ```
 
 Tests run against SQLite in-memory (no Supabase needed). Celery tasks run synchronously in tests.
+
+---
+
+## Smoke Test (end-to-end)
+
+The unit suite mocks every external service. The smoke test mocks **nothing** —
+it drives the real stack through the HTTP API to prove the pipes connect and a
+real LLM produces well-formed output.
+
+**1. Bring up the dependencies** (Postgres, Redis, an LLM backend, Reddit creds):
+
+```bash
+cp -n .env.example .env      # fill in REDDIT_* and, if used, GEMINI_API_KEY / DB_*
+ollama serve &               # local LLM (model from config.yml)
+redis-server &               # broker
+make migrate                 # create tables
+```
+
+**2. Start the server and a worker** (separate terminals):
+
+```bash
+make run        # Django at http://localhost:8000
+make worker     # Celery worker
+```
+
+**3. Run the smoke test:**
+
+```bash
+make smoke                       # default query (Sony WH-1000XM5)
+make smoke QUERY="AirPods Pro"   # or pick your own
+```
+
+It submits the query, prints each stage as the job moves `pending → running →
+done`, then validates the returned summaries' **shape** (required fields,
+percentage ranges, valid trend values). Exit code `0` = healthy. It does not
+assert exact text — an LLM is non-deterministic.
 
 ---
 

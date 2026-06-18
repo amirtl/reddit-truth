@@ -1,4 +1,6 @@
-.PHONY: install test run worker migrate shell docker-up docker-down docker-logs lint
+.PHONY: install test run worker migrate shell smoke docker-up docker-down docker-logs lint
+
+QUERY ?= Sony WH-1000XM5
 
 ## — Local development (uses uv) ——————————————————————————
 
@@ -25,6 +27,11 @@ test:
 
 test-fast:
 	uv run pytest tests/ -v -x --ignore=tests/test_embedder_clusterer.py
+
+# End-to-end smoke test against a running server + worker. Override the product
+# with: make smoke QUERY="AirPods Pro"
+smoke:
+	uv run python scripts/smoke_test.py "$(QUERY)"
 
 ## — Docker ——————————————————————————————————————————————
 
