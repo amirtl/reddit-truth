@@ -106,3 +106,44 @@ def test_single_claim_returns_one_cluster(config):
     result = EmbedderClusterer(config).run(claims)
     assert len(result) == 1
     assert result[0].claims[0].comment_id == "c1"
+
+
+@pytest.fixture
+def realistic_claims():
+    # Long, discursive quotes that share opinion vocabulary — the set that
+    # collapsed the whole pipeline into one cluster in the live smoke run. The
+    # "price" claims are the connective tissue that bridges every aspect.
+    return [
+        AspectClaim("c1", "noise cancelling", "positive", "blocks out the entire airplane engine drone completely"),
+        AspectClaim("c2", "noise cancelling", "positive", "best I have ever experienced, far better than the Bose QC45"),
+        AspectClaim("c3", "noise cancelling", "positive", "subway noise basically disappears when I put them on"),
+        AspectClaim("c4", "battery life", "negative", "barely makes it two days now after eight months of use"),
+        AspectClaim("c5", "battery life", "negative", "drains much faster than when I first bought them"),
+        AspectClaim("c6", "battery life", "negative", "dying after only a year, really disappointing"),
+        AspectClaim("c7", "battery life", "positive", "easily lasted thirty hours per charge on long trips"),
+        AspectClaim("c8", "comfort", "positive", "earcups are soft and they never clamp too hard on my head"),
+        AspectClaim("c9", "comfort", "positive", "I forget I am wearing them during an entire eight hour work day"),
+        AspectClaim("c10", "sound quality", "positive", "rich and detailed with deep bass, slightly warm signature"),
+        AspectClaim("c11", "sound quality", "positive", "vocals are clear and the soundstage feels surprisingly wide"),
+        AspectClaim("c12", "call quality", "negative", "people told me I sounded muffled and distant during calls"),
+        AspectClaim("c13", "call quality", "negative", "friends say my voice sounds thin and processed on calls"),
+        AspectClaim("c14", "build quality", "negative", "plastic hinges feel a little fragile to me"),
+        AspectClaim("c15", "price", "positive", "worth every penny, comfort sound and noise cancelling justify the cost"),
+        AspectClaim("c16", "price", "positive", "steep but the multipoint bluetooth and app features make them complete"),
+    ]
+
+
+def test_realistic_quotes_keep_distinct_aspects_separate(config, realistic_claims):
+    result = EmbedderClusterer(config).run(realistic_claims)
+
+    # The whole value prop depends on aspects NOT collapsing into one bucket.
+    assert len(result) >= 4, f"aspects collapsed into {len(result)} cluster(s)"
+
+    battery = next(c for c in result if "battery" in c.label.lower())
+    anc = next(c for c in result if "noise" in c.label.lower())
+    battery_ids = {cl.comment_id for cl in battery.claims}
+    anc_ids = {cl.comment_id for cl in anc.claims}
+
+    assert battery_ids.isdisjoint(anc_ids), "battery and ANC claims merged together"
+    assert {"c4", "c5", "c6", "c7"}.issubset(battery_ids)
+    assert {"c1", "c2", "c3"}.issubset(anc_ids)

@@ -22,7 +22,11 @@ class EmbedderClusterer:
         return self._build_clusters(claims, labels)
 
     def _embed(self, claims: list[AspectClaim]) -> np.ndarray:
-        texts = [f"{c.aspect}: {c.quote}" for c in claims]
+        # Cluster on the aspect label, not the quote. This step's job is to merge
+        # synonymous aspects ("battery"/"battery life"); the quote is opinion
+        # content whose shared vocabulary ("worth the price") otherwise drags
+        # unrelated aspects into one cluster and collapses the breakdown.
+        texts = [c.aspect for c in claims]
         return self.model.encode(texts)
 
     def _cluster(self, embeddings: np.ndarray) -> np.ndarray:
