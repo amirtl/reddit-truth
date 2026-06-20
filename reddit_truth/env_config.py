@@ -1,3 +1,5 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,3 +34,21 @@ class EnvConfig(BaseSettings):
 
 
 env = EnvConfig()
+
+
+def _export_llm_keys(config: EnvConfig) -> None:
+    """Bridge LLM keys into os.environ so LiteLLM (called from the pure pipeline)
+    can authenticate. Pydantic loads them onto `env`, but LiteLLM reads the
+    provider-conventional environment variables directly. Only set non-empty keys
+    so we never clobber a real env var with a blank default.
+    """
+    for var, value in (
+        ("GEMINI_API_KEY", config.gemini_api_key),
+        ("OPENAI_API_KEY", config.openai_api_key),
+        ("ANTHROPIC_API_KEY", config.anthropic_api_key),
+    ):
+        if value:
+            os.environ.setdefault(var, value)
+
+
+_export_llm_keys(env)
