@@ -27,6 +27,30 @@ def patch_runner(mocker, result):
 # ── happy path ──────────────────────────────────────────────────────────────────
 
 @pytest.mark.django_db
+def test_rerun_replaces_stale_summaries(mocker):
+    # An earlier analysis left a summary for this product; re-running must replace
+    # it, not pile new rows on top of stale ones.
+    product = Product.objects.create(
+        id="sony-xm5", canonical_name="Sony WH-1000XM5", category="headphones",
+    )
+    AspectSummaryModel.objects.create(
+        product=product, aspect="STALE", mention_pct=99.0, positive_pct=0.0,
+        negative_pct=0.0, recent_trend="stable", headline="old", detail="old",
+    )
+    make_job()
+    patch_runner(mocker, PipelineResult(make_product(), [
+        AspectSummary("battery", 80.0, 75.0, 25.0, "improving", "h", "d", ""),
+    ]))
+
+    run_pipeline_task("job-1")
+
+    labels = set(
+        AspectSummaryModel.objects.filter(product_id="sony-xm5").values_list("aspect", flat=True)
+    )
+    assert labels == {"battery"}  # the stale "STALE" row is gone
+
+
+@pytest.mark.django_db
 def test_persists_summaries_and_marks_done(mocker):
     job = make_job()
     summaries = [

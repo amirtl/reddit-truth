@@ -65,6 +65,10 @@ def run_pipeline_task(job_id: str) -> None:
 def _persist_result(job: Job, result: PipelineResult) -> None:
     product = _save_product(result)
 
+    # Replace, don't append: a re-analysis supersedes any prior summaries for
+    # this product, so the API never serves a mix of stale and fresh rows.
+    AspectSummaryModel.objects.filter(product=product).delete()
+
     for summary in result.summaries:
         AspectSummaryModel.objects.create(
             product=product,
