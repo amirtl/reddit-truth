@@ -4,8 +4,13 @@ pydantic>=2.0
 pydantic-settings>=2.0
 celery[redis]==5.3.6
 praw==7.7.1
-litellm==1.40.0
+litellm==1.89.2
 sentence-transformers==3.0.1
+# Constrain transitive ML deps: litellm 1.89 pulls newer tokenizers/hub that the
+# pinned transformers (via sentence-transformers 3.0.1) rejects. Hold them in the
+# window both accept.
+tokenizers==0.22.2
+huggingface-hub==0.36.2
 scikit-learn==1.5.1
 numpy==1.26.4
 psycopg2-binary==2.9.9
