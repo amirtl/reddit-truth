@@ -26,10 +26,21 @@ class Summarizer:
             positive_pct=aspect.positive_pct,
             negative_pct=aspect.negative_pct,
             recent_trend=aspect.recent_trend,
-            headline=data["headline"],
-            detail=data["detail"],
-            trend_note=data.get("trend_note", ""),
+            # The LLM is non-deterministic: keys can be missing and string fields
+            # can come back as lists. Coerce defensively so one odd response never
+            # crashes the whole job.
+            headline=self._text(data.get("headline"), fallback=aspect.label),
+            detail=self._text(data.get("detail")),
+            trend_note=self._text(data.get("trend_note")),
         )
+
+    @staticmethod
+    def _text(value, fallback: str = "") -> str:
+        if value is None:
+            return fallback
+        if isinstance(value, list):
+            return " ".join(str(item) for item in value)
+        return str(value)
 
     def _build_prompt(self, aspect: QuantifiedAspect, cluster: Cluster | None) -> str:
         quotes = [c.quote for c in (cluster.claims[:10] if cluster else [])]

@@ -24,6 +24,45 @@ def mock_llm_response(mocker, content: dict):
     return mock
 
 
+# ── robustness to imperfect LLM JSON ──────────────────────────────────────────
+
+def test_missing_headline_falls_back_to_aspect_label(config, mocker):
+    # real Ollama sometimes omits keys entirely — must not crash
+    mock_llm_response(mocker, {"detail": "Users report degradation."})
+    aspects = [QuantifiedAspect("battery life", 87.0, 71.0, 29.0, "declining")]
+    clusters = [Cluster("battery life", [], 0, 0)]
+
+    result = Summarizer(config).run(aspects, clusters)
+
+    assert result[0].headline == "battery life"
+    assert result[0].detail == "Users report degradation."
+
+
+def test_detail_returned_as_list_is_joined(config, mocker):
+    # the LLM occasionally returns detail as a JSON array of sentences
+    mock_llm_response(mocker, {
+        "headline": "Mixed sound",
+        "detail": ["Bass is deep.", "Mics are weak."],
+    })
+    aspects = [QuantifiedAspect("sound", 50.0, 50.0, 50.0, "stable")]
+    clusters = [Cluster("sound", [], 0, 0)]
+
+    result = Summarizer(config).run(aspects, clusters)
+
+    assert result[0].detail == "Bass is deep. Mics are weak."
+
+
+def test_missing_detail_and_trend_note_default_to_empty(config, mocker):
+    mock_llm_response(mocker, {"headline": "Great"})
+    aspects = [QuantifiedAspect("comfort", 30.0, 90.0, 10.0, "stable")]
+    clusters = [Cluster("comfort", [], 0, 0)]
+
+    result = Summarizer(config).run(aspects, clusters)
+
+    assert result[0].detail == ""
+    assert result[0].trend_note == ""
+
+
 # ── structural tests ──────────────────────────────────────────────────────────
 
 def test_returns_list_of_aspect_summaries(config, mocker):
