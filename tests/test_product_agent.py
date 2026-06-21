@@ -55,6 +55,36 @@ def test_run_passes_query_in_prompt(config, mocker):
     assert "some product name" in prompt
 
 
+def _mock_llm(mocker, payload):
+    m = mocker.patch("pipeline.product_agent.litellm.completion")
+    m.return_value.choices[0].message.content = json.dumps(payload)
+    return m
+
+
+def test_missing_keys_do_not_crash(config, mocker):
+    _mock_llm(mocker, {})  # LLM returned nothing useful
+    result = ProductUnderstandingAgent(config).run("Dyson V15")
+    assert isinstance(result, ProductInfo)
+    assert result.canonical_name  # falls back, never empty
+    assert result.search_terms    # never empty
+
+
+def test_empty_search_terms_falls_back_to_query(config, mocker):
+    _mock_llm(mocker, {"canonical_name": "Dyson V15", "search_terms": [], "subreddits": ["dyson"]})
+    result = ProductUnderstandingAgent(config).run("Dyson V15")
+    assert "Dyson V15" in result.search_terms
+
+
+def test_raw_query_always_included_as_search_term(config, mocker):
+    # guards against the model returning terms for the wrong product
+    _mock_llm(mocker, {
+        "canonical_id": "x", "canonical_name": "X", "category": "headphones",
+        "search_terms": ["Sony WH-1000XM5"], "subreddits": ["headphones"],
+    })
+    result = ProductUnderstandingAgent(config).run("Baldur's Gate 3")
+    assert "Baldur's Gate 3" in result.search_terms
+
+
 def test_prompt_demands_specific_terms_not_generic(config, mocker):
     mock_completion = mocker.patch("pipeline.product_agent.litellm.completion")
     mock_completion.return_value.choices[0].message.content = json.dumps({

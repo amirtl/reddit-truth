@@ -1,5 +1,5 @@
 llms:
-  product_understanding: "ollama/llama3.2"
+  product_understanding: "gemini/gemini-2.5-flash"
   aspect_extraction: "gemini/gemini-2.5-flash"
   summarization: "ollama/llama3.2"
 

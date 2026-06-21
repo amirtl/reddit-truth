@@ -1,7 +1,12 @@
 import json
+import re
 import litellm
 from .types import ProductInfo
 from .config import AppConfig
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "product"
 
 
 class ProductUnderstandingAgent:
@@ -31,10 +36,21 @@ Return only valid JSON, no explanation, no markdown."""
             response_format={"type": "json_object"},
         )
         data = json.loads(response.choices[0].message.content)
+
+        # Defensive: the model (especially a small local one) can omit keys,
+        # return empty lists, or even answer for the wrong product. Never crash,
+        # always keep the user's own query as a search term so we don't drift
+        # onto a different product, and guarantee non-empty terms.
+        canonical_name = data.get("canonical_name") or raw_query
+        search_terms = [t for t in (data.get("search_terms") or []) if isinstance(t, str) and t.strip()]
+        if raw_query not in search_terms:
+            search_terms.insert(0, raw_query)
+        subreddits = [s for s in (data.get("subreddits") or []) if isinstance(s, str) and s.strip()]
+
         return ProductInfo(
-            canonical_id=data["canonical_id"],
-            canonical_name=data["canonical_name"],
-            category=data["category"],
-            search_terms=data["search_terms"],
-            subreddits=data["subreddits"],
+            canonical_id=data.get("canonical_id") or _slug(canonical_name),
+            canonical_name=canonical_name,
+            category=data.get("category") or "",
+            search_terms=search_terms,
+            subreddits=subreddits,
         )
