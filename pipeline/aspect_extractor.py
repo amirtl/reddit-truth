@@ -46,11 +46,12 @@ Return JSON: {{"claims": [{{...}}, ...]}}"""
         the results."""
         if not isinstance(item, dict):
             return None
-        comment_id = item.get("comment_id")
+        raw_id = item.get("comment_id")
+        comment_id = str(raw_id) if raw_id is not None else None  # models may return an int id
         aspect = item.get("aspect")
         if comment_id not in valid_ids or not aspect or not str(aspect).strip():
             return None
-        sentiment = item.get("sentiment")
+        sentiment = str(item.get("sentiment", "")).strip().lower()  # models may capitalize
         if sentiment not in ("positive", "negative", "mixed"):
             sentiment = "mixed"
         return AspectClaim(

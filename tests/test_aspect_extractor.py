@@ -119,6 +119,20 @@ def test_missing_quote_defaults_to_empty(config, mocker):
     assert result[0].quote == ""
 
 
+def test_capitalized_sentiment_is_normalized(config, mocker):
+    # some models (llama3.2) return "Negative" — must map to "negative", not "mixed"
+    _mock_claims(mocker, [{"comment_id": "c1", "aspect": "battery", "sentiment": "Negative", "quote": "y"}])
+    result = AspectExtractor(config).run([make_comment("c1", "Battery is great and lasts long")])
+    assert result[0].sentiment == "negative"
+
+
+def test_integer_comment_id_is_matched(config, mocker):
+    # some models return the id as an int when the prompt numbering looks numeric
+    _mock_claims(mocker, [{"comment_id": 1, "aspect": "battery", "sentiment": "positive", "quote": "y"}])
+    result = AspectExtractor(config).run([make_comment("1", "Battery is great and lasts long")])
+    assert [c.comment_id for c in result] == ["1"]
+
+
 def test_non_dict_claims_are_skipped(config, mocker):
     _mock_claims(mocker, ["not a dict", 123, {"comment_id": "c1", "aspect": "battery", "sentiment": "positive", "quote": "y"}])
     result = AspectExtractor(config).run([make_comment("c1", "Battery is great and lasts long")])
