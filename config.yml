@@ -1,6 +1,6 @@
 llms:
-  product_understanding: "gemini/gemini-2.5-flash"
-  aspect_extraction: "gemini/gemini-2.5-flash"
+  product_understanding: "ollama/llama3.2"
+  aspect_extraction: "ollama/llama3.2"
   summarization: "ollama/llama3.2"
 
 embeddings:
