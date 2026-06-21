@@ -18,6 +18,7 @@ class AspectExtractor:
         return claims
 
     def _extract_batch(self, comments: list[RawComment]) -> list[AspectClaim]:
+        valid_ids = {c.id for c in comments}
         numbered = "\n".join(f"[{c.id}] {c.text}" for c in comments)
         prompt = f"""Extract product aspect claims from these Reddit comments.
 For each opinion found, return: comment_id, aspect, sentiment (positive/negative/mixed), quote (short relevant excerpt, max 10 words).
@@ -35,12 +36,26 @@ Return JSON: {{"claims": [{{...}}, ...]}}"""
             response_format={"type": "json_object"},
         )
         data = json.loads(response.choices[0].message.content)
-        return [
-            AspectClaim(
-                comment_id=item["comment_id"],
-                aspect=item["aspect"],
-                sentiment=item["sentiment"],
-                quote=item["quote"],
-            )
-            for item in data.get("claims", [])
-        ]
+        claims = (self._parse_claim(item, valid_ids) for item in data.get("claims", []))
+        return [c for c in claims if c is not None]
+
+    def _parse_claim(self, item, valid_ids: set[str]) -> AspectClaim | None:
+        """Defensively parse one claim. Skip anything malformed, anything with a
+        comment_id the model invented (not in the batch), and normalize an
+        unknown sentiment to "mixed" so bad LLM output never crashes or pollutes
+        the results."""
+        if not isinstance(item, dict):
+            return None
+        comment_id = item.get("comment_id")
+        aspect = item.get("aspect")
+        if comment_id not in valid_ids or not aspect or not str(aspect).strip():
+            return None
+        sentiment = item.get("sentiment")
+        if sentiment not in ("positive", "negative", "mixed"):
+            sentiment = "mixed"
+        return AspectClaim(
+            comment_id=comment_id,
+            aspect=str(aspect).strip(),
+            sentiment=sentiment,
+            quote=str(item.get("quote", "")),
+        )

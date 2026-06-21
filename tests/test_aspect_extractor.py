@@ -82,6 +82,49 @@ def test_includes_comment_ids_in_prompt(config, mocker):
     assert "abc123" in prompt
 
 
+def _mock_claims(mocker, claims):
+    m = mocker.patch("pipeline.aspect_extractor.litellm.completion")
+    m.return_value.choices[0].message.content = json.dumps({"claims": claims})
+    return m
+
+
+def test_skips_claim_missing_aspect(config, mocker):
+    _mock_claims(mocker, [
+        {"comment_id": "c1", "sentiment": "positive", "quote": "x"},  # no aspect
+        {"comment_id": "c1", "aspect": "battery", "sentiment": "positive", "quote": "y"},
+    ])
+    result = AspectExtractor(config).run([make_comment("c1", "Battery is great and lasts long")])
+    assert [c.aspect for c in result] == ["battery"]
+
+
+def test_normalizes_unknown_sentiment_to_mixed(config, mocker):
+    _mock_claims(mocker, [{"comment_id": "c1", "aspect": "battery", "sentiment": "amazing", "quote": "y"}])
+    result = AspectExtractor(config).run([make_comment("c1", "Battery is great and lasts long")])
+    assert result[0].sentiment == "mixed"
+
+
+def test_drops_hallucinated_comment_id(config, mocker):
+    # the model invents an id not in the batch — must not pollute the results
+    _mock_claims(mocker, [
+        {"comment_id": "zzz", "aspect": "battery", "sentiment": "positive", "quote": "y"},
+        {"comment_id": "c1", "aspect": "sound", "sentiment": "positive", "quote": "y"},
+    ])
+    result = AspectExtractor(config).run([make_comment("c1", "Battery is great and the sound is clear")])
+    assert [c.comment_id for c in result] == ["c1"]
+
+
+def test_missing_quote_defaults_to_empty(config, mocker):
+    _mock_claims(mocker, [{"comment_id": "c1", "aspect": "battery", "sentiment": "positive"}])
+    result = AspectExtractor(config).run([make_comment("c1", "Battery is great and lasts long")])
+    assert result[0].quote == ""
+
+
+def test_non_dict_claims_are_skipped(config, mocker):
+    _mock_claims(mocker, ["not a dict", 123, {"comment_id": "c1", "aspect": "battery", "sentiment": "positive", "quote": "y"}])
+    result = AspectExtractor(config).run([make_comment("c1", "Battery is great and lasts long")])
+    assert len(result) == 1
+
+
 def test_prompt_asks_for_canonical_aspect_labels(config, mocker):
     mock_completion = mocker.patch("pipeline.aspect_extractor.litellm.completion")
     mock_completion.return_value.choices[0].message.content = json.dumps({"claims": []})
