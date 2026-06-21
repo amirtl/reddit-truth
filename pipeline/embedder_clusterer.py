@@ -1,9 +1,13 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from sklearn.cluster import HDBSCAN
-from sklearn.neighbors import NearestNeighbors
+from sklearn.cluster import AgglomerativeClustering
 from .types import AspectClaim, Cluster
 from .config import AppConfig
+
+# Cosine distance below which two aspect labels are treated as the same concept.
+# Tuned on real labels: merges variants like "hinge design"/"durability / hinge"
+# while keeping distinct aspects (sound vs build quality, battery vs ANC) apart.
+MERGE_DISTANCE = 0.4
 
 
 class EmbedderClusterer:
@@ -18,7 +22,6 @@ class EmbedderClusterer:
 
         embeddings = self._embed(claims)
         labels = self._cluster(embeddings)
-        labels = self._reassign_noise(embeddings, labels, len(claims))
         return self._build_clusters(claims, labels)
 
     def _embed(self, claims: list[AspectClaim]) -> np.ndarray:
@@ -30,27 +33,16 @@ class EmbedderClusterer:
         return self.model.encode(texts)
 
     def _cluster(self, embeddings: np.ndarray) -> np.ndarray:
-        min_cluster_size = max(2, int(len(embeddings) * 0.01))
-        return HDBSCAN(
-            min_cluster_size=min_cluster_size,
-            min_samples=1,
+        # Agglomerative with a cosine distance threshold: directly expresses
+        # "merge aspect labels closer than MERGE_DISTANCE". Every point lands in
+        # a cluster (no noise), so a unique aspect keeps its own cluster instead
+        # of being force-attached to an unrelated one.
+        return AgglomerativeClustering(
+            n_clusters=None,
             metric="cosine",
-            cluster_selection_method="eom",
-            allow_single_cluster=True,
+            linkage="average",
+            distance_threshold=MERGE_DISTANCE,
         ).fit_predict(embeddings)
-
-    def _reassign_noise(self, embeddings: np.ndarray, labels: np.ndarray, n: int) -> np.ndarray:
-        if (labels == -1).all():
-            return np.zeros(n, dtype=int)
-        if -1 not in labels:
-            return labels
-        noise_mask = labels == -1
-        core_mask = ~noise_mask
-        nn = NearestNeighbors(n_neighbors=1, metric="cosine")
-        nn.fit(embeddings[core_mask])
-        _, indices = nn.kneighbors(embeddings[noise_mask])
-        labels[noise_mask] = labels[core_mask][indices.flatten()]
-        return labels
 
     def _build_clusters(self, claims: list[AspectClaim], labels: np.ndarray) -> list[Cluster]:
         cluster_map: dict[int, list[AspectClaim]] = {}

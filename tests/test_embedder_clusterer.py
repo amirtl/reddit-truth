@@ -133,6 +133,30 @@ def realistic_claims():
     ]
 
 
+def test_merges_near_duplicate_aspect_labels(config):
+    # The extractor emits granular variants of one concept, each with its own
+    # claims so a density clusterer keeps them as separate small clusters. They
+    # must collapse together, while genuinely different aspects stay apart.
+    claims = [
+        AspectClaim("h1", "hinges (durability)", "negative", "the hinge cracked"),
+        AspectClaim("h2", "hinges (durability)", "negative", "hinge is fragile"),
+        AspectClaim("h3", "hinge design", "negative", "poor hinge design"),
+        AspectClaim("h4", "hinge design", "negative", "the hinge design is bad"),
+        AspectClaim("h5", "durability / hinge", "negative", "hinge snapped off"),
+        AspectClaim("h6", "durability / hinge", "negative", "broke at the hinge"),
+        AspectClaim("s1", "sound quality", "positive", "great sound"),
+        AspectClaim("s2", "sound quality", "positive", "clear crisp audio"),
+        AspectClaim("b1", "battery life", "positive", "lasts for days"),
+        AspectClaim("b2", "battery life", "positive", "excellent battery"),
+    ]
+    result = EmbedderClusterer(config).run(claims)
+
+    hinge_cluster = next(c for c in result if "h1" in {cl.comment_id for cl in c.claims})
+    hinge_ids = {cl.comment_id for cl in hinge_cluster.claims}
+    assert {"h1", "h2", "h3", "h4", "h5", "h6"} <= hinge_ids, "hinge variants did not merge"
+    assert hinge_ids.isdisjoint({"s1", "s2", "b1", "b2"}), "merged unrelated aspects"
+
+
 def test_realistic_quotes_keep_distinct_aspects_separate(config, realistic_claims):
     result = EmbedderClusterer(config).run(realistic_claims)
 
