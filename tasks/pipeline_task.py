@@ -113,6 +113,7 @@ def _save_product(result: PipelineResult) -> Product:
             "category": info.category,
             "search_terms": info.search_terms,
             "subreddits": info.subreddits,
+            "comment_count": result.comment_count,
         },
     )
     return product

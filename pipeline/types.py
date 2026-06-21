@@ -69,3 +69,4 @@ class PipelineResult:
     """
     product: ProductInfo
     summaries: list[AspectSummary]
+    comment_count: int = 0

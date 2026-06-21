@@ -50,7 +50,7 @@ class PipelineRunner:
         # the caller tell the user "no opinions found" instead of doing empty work.
         # We still return the product so the caller can name it in that message.
         if not claims:
-            return PipelineResult(product=product, summaries=[])
+            return PipelineResult(product=product, summaries=[], comment_count=len(comments))
 
         report("clustering")
         clusters = self.embedder_clusterer.run(claims)
@@ -60,4 +60,4 @@ class PipelineRunner:
 
         report("summarizing")
         summaries = self.summarizer.run(aspects, clusters)
-        return PipelineResult(product=product, summaries=summaries)
+        return PipelineResult(product=product, summaries=summaries, comment_count=len(comments))

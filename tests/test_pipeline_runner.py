@@ -57,6 +57,7 @@ def test_returns_pipeline_result_with_product_and_summaries(mocker):
     assert isinstance(result, PipelineResult)
     assert result.product is ctx["product"]
     assert result.summaries is ctx["summaries"]
+    assert result.comment_count == 1  # len(filtered)
 
 
 def test_data_flows_between_stages(mocker):
@@ -83,6 +84,7 @@ def test_short_circuits_when_no_claims(mocker):
     assert isinstance(result, PipelineResult)
     assert result.product is ctx["product"]
     assert result.summaries == []
+    assert result.comment_count == 1  # len(filtered)
     # the expensive / pointless downstream stages must NOT run
     ctx["embedder_clusterer"].run.assert_not_called()
     ctx["quantifier"].run.assert_not_called()
