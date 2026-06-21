@@ -20,7 +20,8 @@ class AspectExtractor:
     def _extract_batch(self, comments: list[RawComment]) -> list[AspectClaim]:
         numbered = "\n".join(f"[{c.id}] {c.text}" for c in comments)
         prompt = f"""Extract product aspect claims from these Reddit comments.
-For each opinion found, return: comment_id, aspect (e.g. "battery life"), sentiment (positive/negative/mixed), quote (short relevant excerpt, max 10 words).
+For each opinion found, return: comment_id, aspect, sentiment (positive/negative/mixed), quote (short relevant excerpt, max 10 words).
+Use CANONICAL aspect labels so the same concept always gets the same name: short lowercase noun phrases, consistent across comments. Prefer broad common aspects (e.g. "battery life", "sound quality", "noise cancellation", "comfort", "build quality", "price", "connectivity"). Expand abbreviations to their full form (e.g. "ANC" -> "noise cancellation"). Do not invent over-specific sub-aspects — use the parent aspect (e.g. "build quality", not "left hinge design").
 A single comment can produce multiple claims if it mentions multiple aspects.
 
 Comments:

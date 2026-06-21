@@ -82,6 +82,18 @@ def test_includes_comment_ids_in_prompt(config, mocker):
     assert "abc123" in prompt
 
 
+def test_prompt_asks_for_canonical_aspect_labels(config, mocker):
+    mock_completion = mocker.patch("pipeline.aspect_extractor.litellm.completion")
+    mock_completion.return_value.choices[0].message.content = json.dumps({"claims": []})
+
+    AspectExtractor(config).run([make_comment("c1", "Sound is great and the battery lasts a long time")])
+
+    prompt = mock_completion.call_args.kwargs["messages"][0]["content"].lower()
+    # steer toward consistent canonical labels and expanded abbreviations
+    assert "canonical" in prompt or "consistent" in prompt
+    assert "abbreviation" in prompt or "anc" in prompt
+
+
 def test_comment_ids_correctly_attributed_across_batches(config, mocker):
     # simulate two batches: first returns claims for batch-1 comments,
     # second returns claims for batch-2 comments
