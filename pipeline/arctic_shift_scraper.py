@@ -1,3 +1,4 @@
+import re
 import time
 from datetime import datetime, timezone
 
@@ -37,9 +38,10 @@ class ArcticShiftScraper:
         self.max_retries = max_retries
 
     def run(self, product: ProductInfo, limit: int = 100) -> list[RawComment]:
+        matcher = self._alias_matcher(product.search_terms)
         comments: list[RawComment] = []
         seen: set[str] = set()
-        for link_id in self._collect_submission_ids(product):
+        for link_id in self._collect_submission_ids(product, matcher):
             if len(comments) >= limit:
                 break
             for raw in self._fetch_comments(link_id):
@@ -51,23 +53,37 @@ class ArcticShiftScraper:
                     break
         return comments
 
-    def _collect_submission_ids(self, product: ProductInfo) -> list[str]:
+    def _alias_matcher(self, aliases: list[str]) -> re.Pattern | None:
+        """Word-bounded matcher for the product's aliases, so "XM5" matches a
+        standalone mention but not "XM500"."""
+        parts = [re.escape(a) for a in aliases if a]
+        if not parts:
+            return None
+        return re.compile(rf"\b(?:{'|'.join(parts)})\b", re.IGNORECASE)
+
+    def _collect_submission_ids(self, product: ProductInfo, matcher: re.Pattern | None) -> list[str]:
         ids: list[str] = []
         seen: set[str] = set()
         for term in product.search_terms[: self.max_terms]:
             for subreddit in product.subreddits[: self.max_subreddits]:
-                for sid in self._search_submissions(term, subreddit):
+                for sid in self._search_submissions(term, subreddit, matcher):
                     if sid not in seen:
                         seen.add(sid)
                         ids.append(sid)
         return ids
 
-    def _search_submissions(self, term: str, subreddit: str) -> list[str]:
+    def _search_submissions(self, term: str, subreddit: str, matcher: re.Pattern | None) -> list[str]:
         data = self._get("/posts/search", {
             "subreddit": subreddit, "query": term,
             "sort": "desc", "limit": self.posts_per_query,
         })
-        return [p["id"] for p in data if p.get("id")]
+        # Precision: keep only threads whose TITLE names the product. Threads that
+        # merely mention it in the body are ~99% off-topic (measured), so their
+        # comments are dropped wholesale.
+        return [
+            p["id"] for p in data
+            if p.get("id") and matcher and matcher.search(p.get("title", ""))
+        ]
 
     def _fetch_comments(self, link_id: str) -> list[RawComment]:
         data = self._get("/comments/search", {

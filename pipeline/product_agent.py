@@ -15,7 +15,12 @@ Return a JSON object with exactly these keys:
 - canonical_id: kebab-case product identifier (e.g. "sony-wh-1000xm5")
 - canonical_name: full official product name
 - category: product category (e.g. "headphones", "laptop", "camera")
-- search_terms: list of 3-5 search terms to find Reddit discussions
+- search_terms: 3-5 SPECIFIC identifiers that uniquely name THIS exact product —
+  the full model name, the bare model number, and common abbreviations or
+  nicknames. For "Sony WH-1000XM5" that is ["Sony WH-1000XM5", "WH-1000XM5",
+  "XM5", "Sony XM5"]. Do NOT include generic category terms like "wireless
+  headphones" or "noise-cancelling headphones" — they match unrelated products
+  and ruin precision. Every term must distinguish this product from its siblings.
 - subreddits: list of 3-5 relevant subreddits (without r/ prefix)
 
 Return only valid JSON, no explanation, no markdown."""

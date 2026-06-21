@@ -55,6 +55,21 @@ def test_run_passes_query_in_prompt(config, mocker):
     assert "some product name" in prompt
 
 
+def test_prompt_demands_specific_terms_not_generic(config, mocker):
+    mock_completion = mocker.patch("pipeline.product_agent.litellm.completion")
+    mock_completion.return_value.choices[0].message.content = json.dumps({
+        "canonical_id": "x", "canonical_name": "X", "category": "headphones",
+        "search_terms": ["x"], "subreddits": ["y"],
+    })
+
+    ProductUnderstandingAgent(config).run("Sony WH-1000XM5")
+
+    prompt = mock_completion.call_args.kwargs["messages"][0]["content"].lower()
+    # must steer the model toward specific identifiers and away from category terms
+    assert "specific" in prompt
+    assert "generic" in prompt or "category" in prompt
+
+
 def test_run_uses_configured_model(config, mocker):
     mock_completion = mocker.patch("pipeline.product_agent.litellm.completion")
     mock_completion.return_value.choices[0].message.content = json.dumps({
