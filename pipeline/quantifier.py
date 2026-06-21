@@ -3,6 +3,9 @@ from .types import RawComment, Cluster, QuantifiedAspect
 
 RECENT_DAYS = 90
 TREND_THRESHOLD = 0.10
+# An aspect mentioned by fewer than this many distinct comments isn't a signal —
+# one person's remark is noise, not a trend. Drops the singleton-aspect tail.
+MIN_MENTIONS = 2
 
 
 class Quantifier:
@@ -14,8 +17,12 @@ class Quantifier:
         aspects = [
             self._quantify(cluster, total, comment_map, recent_cutoff)
             for cluster in clusters
+            if self._unique_mentions(cluster) >= MIN_MENTIONS
         ]
         return sorted(aspects, key=lambda a: a.mention_pct, reverse=True)
+
+    def _unique_mentions(self, cluster: Cluster) -> int:
+        return len({claim.comment_id for claim in cluster.claims})
 
     def _quantify(
         self,

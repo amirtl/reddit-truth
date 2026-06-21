@@ -29,7 +29,7 @@ def test_returns_list_of_quantified_aspects():
 def test_sorted_by_mention_pct():
     comments = [make_comment(f"c{i}") for i in range(10)]
     big = make_cluster("battery", [AspectClaim(f"c{i}", "battery", "positive", "good") for i in range(8)], 8, 0)
-    small = make_cluster("ANC", [AspectClaim("c9", "ANC", "positive", "good")], 1, 0)
+    small = make_cluster("ANC", [AspectClaim("c8", "ANC", "positive", "good"), AspectClaim("c9", "ANC", "positive", "ok")], 2, 0)
     result = Quantifier().run([small, big], comments)
     assert result[0].label == "battery"
 
@@ -45,15 +45,40 @@ def test_mention_pct_calculation():
 
 
 def test_mention_pct_counts_unique_comments_not_claims():
-    # c1 has two claims (two aspects mentioned) — should count as one mention
-    comments = [make_comment("c1"), make_comment("c2")]
+    # c1 has two claims — should count as one mention; c2 is a second mention
+    comments = [make_comment("c1"), make_comment("c2"), make_comment("c3")]
     claims = [
         AspectClaim("c1", "battery", "positive", "great battery"),
         AspectClaim("c1", "battery", "positive", "lasts long"),  # same comment, second claim
+        AspectClaim("c2", "battery", "positive", "good"),
     ]
-    cluster = make_cluster("battery", claims, 2, 0)
+    cluster = make_cluster("battery", claims, 3, 0)
     result = Quantifier().run([cluster], comments)
-    assert result[0].mention_pct == 50.0  # 1 unique comment out of 2, not 2/2
+    assert result[0].mention_pct == pytest.approx(66.7, abs=0.1)  # 2 unique comments / 3, not 3/3
+
+
+# ── min-mention filter (drops the single-mention tail) ────────────────────────
+
+def test_drops_single_mention_aspects():
+    comments = [make_comment(f"c{i}") for i in range(5)]
+    big = make_cluster("battery", [AspectClaim(f"c{i}", "battery", "positive", "g") for i in range(3)], 3, 0)
+    singleton = make_cluster("warranty", [AspectClaim("c4", "warranty", "negative", "bad")], 0, 1)
+    result = Quantifier().run([big, singleton], comments)
+    labels = [a.label for a in result]
+    assert "battery" in labels
+    assert "warranty" not in labels
+
+
+def test_aspect_with_two_claims_from_one_comment_is_dropped():
+    # mentioned twice but by a single commenter — not a signal
+    comments = [make_comment("c1"), make_comment("c2")]
+    claims = [
+        AspectClaim("c1", "hinge", "negative", "broke"),
+        AspectClaim("c1", "hinge", "negative", "cracked"),
+    ]
+    cluster = make_cluster("hinge", claims, 0, 2)
+    result = Quantifier().run([cluster], comments)
+    assert result == []
 
 
 def test_positive_negative_pct():
