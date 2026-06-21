@@ -106,3 +106,31 @@ def test_get_summaries_for_unknown_product_is_empty(client):
     resp = client.get("/api/products/nope/summaries/")
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+@pytest.mark.django_db
+def test_list_products_returns_recent(client):
+    Product.objects.create(id="a", canonical_name="A", category="x", comment_count=10)
+    Product.objects.create(id="b", canonical_name="B", category="y", comment_count=20)
+    resp = client.get("/api/products/")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert {p["id"] for p in data} == {"a", "b"}
+    assert data[0]["comment_count"] in (10, 20)
+
+
+@pytest.mark.django_db
+def test_product_detail_returns_fields(client):
+    Product.objects.create(id="sony-xm5", canonical_name="Sony WH-1000XM5",
+                           category="headphones", subreddits=["headphones"], comment_count=60)
+    resp = client.get("/api/products/sony-xm5/")
+    assert resp.status_code == 200
+    d = resp.json()
+    assert d["canonical_name"] == "Sony WH-1000XM5"
+    assert d["comment_count"] == 60
+    assert d["subreddits"] == ["headphones"]
+
+
+@pytest.mark.django_db
+def test_product_detail_404_for_unknown(client):
+    assert client.get("/api/products/nope/").status_code == 404

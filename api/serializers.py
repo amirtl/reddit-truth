@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from core.models import Job, AspectSummary
+from core.models import Job, AspectSummary, Product
 
 
 class JobCreateSerializer(serializers.Serializer):
@@ -24,3 +24,9 @@ class AspectSummarySerializer(serializers.ModelSerializer):
             "aspect", "mention_pct", "positive_pct", "negative_pct",
             "recent_trend", "headline", "detail", "trend_note", "generated_at",
         ]
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = ["id", "canonical_name", "category", "subreddits", "comment_count", "created_at"]
