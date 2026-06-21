@@ -6,6 +6,8 @@ from pipeline.config import load_config
 from pipeline.runner import PipelineRunner
 from pipeline.product_agent import ProductUnderstandingAgent
 from pipeline.scraper import RedditScraper
+from pipeline.arctic_shift_scraper import ArcticShiftScraper
+from pipeline.ports import Scraper
 from pipeline.noise_filter import NoiseFilter
 from pipeline.aspect_extractor import AspectExtractor
 from pipeline.embedder_clusterer import EmbedderClusterer
@@ -17,18 +19,29 @@ from reddit_truth.env_config import env
 NO_OPINIONS_MESSAGE = "No opinions found — try a more popular product or broader search terms."
 
 
+def _build_scraper(config) -> Scraper:
+    """Pick the scraper backend from config. Isolated so backend selection is
+    testable without building the heavy real runner."""
+    backend = config.scraper.backend
+    if backend == "arctic_shift":
+        return ArcticShiftScraper(user_agent=env.reddit_user_agent)
+    if backend == "praw":
+        return RedditScraper(
+            env.reddit_client_id, env.reddit_client_secret, env.reddit_user_agent
+        )
+    raise ValueError(f"Unknown scraper backend: {backend!r}")
+
+
 def build_runner(config) -> PipelineRunner:
     """Factory: construct the real pipeline components from config + secrets.
 
-    This is the one place that knows about PRAW credentials, model names, and the
-    embedding model — keeping that knowledge out of the pure pipeline. Exercised
-    end-to-end by the Task 15 smoke test rather than unit tests.
+    This is the one place that knows about scraper credentials, model names, and
+    the embedding model — keeping that knowledge out of the pure pipeline.
+    Exercised end-to-end by the smoke test rather than unit tests.
     """
     return PipelineRunner(
         product_agent=ProductUnderstandingAgent(config),
-        scraper=RedditScraper(
-            env.reddit_client_id, env.reddit_client_secret, env.reddit_user_agent
-        ),
+        scraper=_build_scraper(config),
         noise_filter=NoiseFilter(),
         aspect_extractor=AspectExtractor(config),
         embedder_clusterer=EmbedderClusterer(config),

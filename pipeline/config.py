@@ -1,5 +1,5 @@
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import yaml
 
 
@@ -14,9 +14,14 @@ class EmbeddingConfig(BaseModel):
     model: str
 
 
+class ScraperConfig(BaseModel):
+    backend: str = "arctic_shift"  # "arctic_shift" | "praw"
+
+
 class AppConfig(BaseModel):
     llms: LLMConfig
     embeddings: EmbeddingConfig
+    scraper: ScraperConfig = Field(default_factory=ScraperConfig)
 
 
 def load_config(path: str = "config.yml") -> AppConfig:

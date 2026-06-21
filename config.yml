@@ -6,3 +6,6 @@ llms:
 embeddings:
   provider: "local"
   model: "all-MiniLM-L6-v2"
+
+scraper:
+  backend: "arctic_shift"   # "arctic_shift" (no creds) | "praw" (needs Reddit API creds)

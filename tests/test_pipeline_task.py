@@ -1,9 +1,37 @@
 import pytest
 from unittest.mock import Mock
 from core.models import Job, Product, AspectSummary as AspectSummaryModel
+from pipeline.config import AppConfig, LLMConfig, EmbeddingConfig, ScraperConfig
 from pipeline.types import ProductInfo, AspectSummary, PipelineResult
+from pipeline.arctic_shift_scraper import ArcticShiftScraper
 import tasks.pipeline_task as task_module
-from tasks.pipeline_task import run_pipeline_task, NO_OPINIONS_MESSAGE
+from tasks.pipeline_task import run_pipeline_task, NO_OPINIONS_MESSAGE, _build_scraper
+
+
+def make_config(backend):
+    return AppConfig(
+        llms=LLMConfig(product_understanding="ollama/x", aspect_extraction="gemini/x", summarization="ollama/x"),
+        embeddings=EmbeddingConfig(provider="local", model="all-MiniLM-L6-v2"),
+        scraper=ScraperConfig(backend=backend),
+    )
+
+
+# ── scraper backend selection ───────────────────────────────────────────────────
+
+def test_build_scraper_defaults_to_arctic_shift():
+    assert isinstance(_build_scraper(make_config("arctic_shift")), ArcticShiftScraper)
+
+
+def test_build_scraper_uses_praw_when_configured(mocker):
+    sentinel = object()
+    praw_cls = mocker.patch("tasks.pipeline_task.RedditScraper", return_value=sentinel)
+    assert _build_scraper(make_config("praw")) is sentinel
+    praw_cls.assert_called_once()
+
+
+def test_build_scraper_rejects_unknown_backend():
+    with pytest.raises(ValueError):
+        _build_scraper(make_config("nope"))
 
 
 def make_job(query="Sony WH-1000XM5"):
