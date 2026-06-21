@@ -20,7 +20,11 @@ run:
 	uv run python manage.py runserver
 
 worker:
-	uv run celery -A reddit_truth worker --loglevel=info
+	# macOS: the prefork pool fork()s workers, which aborts (SIGABRT) once
+	# PyTorch/sentence-transformers is loaded. Use the solo pool locally and mark
+	# native libs fork-safe. The Docker/Linux worker keeps prefork concurrency.
+	OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES TOKENIZERS_PARALLELISM=false \
+		uv run celery -A reddit_truth worker --pool=solo --loglevel=info
 
 test:
 	uv run pytest tests/ -v
