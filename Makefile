@@ -26,6 +26,9 @@ worker:
 	OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES TOKENIZERS_PARALLELISM=false \
 		uv run celery -A reddit_truth worker --pool=solo --loglevel=info
 
+frontend:
+	cd frontend && npm run dev
+
 test:
 	uv run pytest tests/ -v
 

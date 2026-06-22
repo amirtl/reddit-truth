@@ -1,6 +1,19 @@
 llms:
-  product_understanding: "gemini/gemini-2.5-flash"
-  aspect_extraction: "gemini/gemini-2.5-flash"
+  # All-local Ollama: free, no Gemini daily-quota wall.
+  #
+  # The two structured stages need real-world knowledge and clean JSON. We
+  # benchmarked 5 local models on product understanding (does the model name
+  # subreddits that ACTUALLY contain product threads on Arctic-Shift, across 6
+  # diverse products): llama3.2-3b 3/6, qwen2.5-3b 3/6, llama3.1-8b 4/6,
+  # qwen2.5-7b 6/6, gemma2-9b 6/6 with the most real subreddits. The 3B models
+  # invent subreddits (r/HeadphoneGears) and leak terms across products, which
+  # zeroes recall and contaminates summaries. gemma2:9b won, so it drives the
+  # structured stages. Summarization is free-form prose, so the fast 3B is fine.
+  #
+  # Gemini Flash is even better; when free-tier quota is available, swap the two
+  # structured stages to "gemini/gemini-2.5-flash".
+  product_understanding: "ollama/gemma2:9b"
+  aspect_extraction: "ollama/gemma2:9b"
   summarization: "ollama/llama3.2"
 
 embeddings:

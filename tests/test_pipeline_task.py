@@ -55,6 +55,16 @@ def patch_runner(mocker, result):
 # ── happy path ──────────────────────────────────────────────────────────────────
 
 @pytest.mark.django_db
+def test_persists_comment_count(mocker):
+    make_job()
+    patch_runner(mocker, PipelineResult(make_product(), [
+        AspectSummary("battery", 80.0, 75.0, 25.0, "stable", "h", "d", ""),
+    ], comment_count=42))
+    run_pipeline_task("job-1")
+    assert Product.objects.get(id="sony-xm5").comment_count == 42
+
+
+@pytest.mark.django_db
 def test_rerun_replaces_stale_summaries(mocker):
     # An earlier analysis left a summary for this product; re-running must replace
     # it, not pile new rows on top of stale ones.

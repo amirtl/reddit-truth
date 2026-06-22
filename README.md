@@ -199,6 +199,20 @@ assert exact text — an LLM is non-deterministic.
 
 ---
 
+## Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:3000  (proxies /api to the Django backend)
+```
+
+Needs the backend running (`make run`) and a worker (`make worker`). Submit a
+product, watch the live pipeline progress, then read the aspect-by-aspect verdict.
+Light/dark toggle in the corner. Built with Next.js + TailwindCSS + TanStack Query.
+
+---
+
 ## Project Structure
 
 ```

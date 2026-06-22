@@ -6,9 +6,11 @@ from rest_framework.generics import RetrieveAPIView, ListAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core.models import Job, AspectSummary
+from core.models import Job, AspectSummary, Product
 from tasks.pipeline_task import run_pipeline_task
-from .serializers import JobCreateSerializer, JobSerializer, AspectSummarySerializer
+from .serializers import (
+    JobCreateSerializer, JobSerializer, AspectSummarySerializer, ProductSerializer,
+)
 
 
 class JobCreateView(APIView):
@@ -46,3 +48,19 @@ class ProductSummariesView(ListAPIView):
 
     def get_queryset(self):
         return AspectSummary.objects.filter(product_id=self.kwargs["canonical_id"])
+
+
+class ProductListView(ListAPIView):
+    """GET recently analyzed products for the landing grid."""
+    serializer_class = ProductSerializer
+
+    def get_queryset(self):
+        return Product.objects.order_by("-created_at")[:20]
+
+
+class ProductDetailView(RetrieveAPIView):
+    """GET one product's metadata (for the results header)."""
+    serializer_class = ProductSerializer
+    queryset = Product.objects.all()
+    lookup_field = "id"
+    lookup_url_kwarg = "canonical_id"
