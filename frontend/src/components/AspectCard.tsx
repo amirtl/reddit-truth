@@ -15,14 +15,18 @@ export default function AspectCard({ summary }: { summary: AspectSummary }) {
       style={{ background: "var(--card)", borderColor: "var(--border)" }}
     >
       <div className="flex items-center gap-3">
-        <div className="w-9 text-center leading-tight">
-          <div style={{ color: "var(--brand)" }}>▲</div>
-          <div className="text-xs font-bold" style={{ color: "var(--text)" }}>
-            {pos}
+        <div className="w-12 leading-tight">
+          <div className="flex items-center gap-1.5">
+            <span style={{ color: "var(--brand)" }}>▲</span>
+            <span className="text-xs font-bold" style={{ color: "var(--text)" }}>
+              {pos}
+            </span>
           </div>
-          <div style={{ color: "var(--downvote)" }}>▼</div>
-          <div className="text-xs font-bold" style={{ color: "var(--text)" }}>
-            {neg}
+          <div className="flex items-center gap-1.5">
+            <span style={{ color: "var(--downvote)" }}>▼</span>
+            <span className="text-xs font-bold" style={{ color: "var(--text)" }}>
+              {neg}
+            </span>
           </div>
         </div>
         <div className="flex-1">
