@@ -1,15 +1,29 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+// The `dark` class on <html> is external state owned by the DOM (set pre-paint
+// by the inline script in layout.tsx). `useSyncExternalStore` is the canonical
+// way to read external mutable state: it avoids setState-in-effect (no cascading
+// renders) and stays hydration-safe by returning a stable server snapshot.
+
+function subscribe(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["class"],
+  });
+  return () => observer.disconnect();
+}
+
+const isDark = () => document.documentElement.classList.contains("dark");
 
 export default function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+  // Server can't know the user's theme; render light, then the store re-reads
+  // the real DOM state on the client (matching the pre-paint script).
+  const dark = useSyncExternalStore(subscribe, isDark, () => false);
 
   function toggle() {
     const next = !dark;
-    setDark(next);
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("theme", next ? "dark" : "light");
   }
