@@ -40,11 +40,6 @@ def decide(state: AgentState) -> str:
     return "revise"
 
 
-def _anchor(terms: list[str]) -> str:
-    """The most specific term — used as the 'on-topic' yardstick for precision."""
-    return max(terms, key=len) if terms else ""
-
-
 class AgenticProductAgent:
     """Self-correcting product understanding as a LangGraph agent.
 
@@ -111,7 +106,10 @@ class AgenticProductAgent:
         draft = state["draft"]
         subs = {s: validate_subreddit(self.client, s, draft.search_terms)
                 for s in draft.subreddits}
-        anchor = _anchor(draft.search_terms)
+        # Anchor on the user's raw query — the ground-truth specific identifier.
+        # (Using the longest term over-flagged good terms against a rarer, more
+        # specific variant, wasting revise loops.)
+        anchor = state["raw_query"]
         noisy = [t for t in draft.search_terms
                  if t != anchor
                  and check_term_precision(self.client, t, anchor, draft.subreddits) < NOISY_TERM_THRESHOLD]

@@ -71,6 +71,18 @@ def test_validate_flags_dead_subreddits_and_noisy_terms():
     assert "Pro 2" in out["validation"]["noisy_terms"]
 
 
+def test_specific_term_not_flagged_when_a_longer_variant_exists():
+    # The raw query "AirPods Pro 2" is the anchor. A longer variant
+    # "AirPods Pro 2 review" must NOT cause the good term "AirPods Pro 2" to be
+    # flagged noisy (the longest-term-anchor bug burned revise loops live).
+    draft = ProductInfo("x", "AirPods Pro 2", "earbuds",
+                        ["AirPods Pro 2", "AirPods Pro 2 review"], ["apple"])
+    client = FakeClient(productive={"apple": 3})
+    out = _agent(client)._validate({"draft": draft, "validation": {}, "iterations": 0,
+                                    "raw_query": "AirPods Pro 2", "history": []})
+    assert "AirPods Pro 2" not in out["validation"]["noisy_terms"]
+
+
 def test_finalize_keeps_productive_subreddits_first():
     draft = ProductInfo("x", "X", "c", ["X"], ["fake", "apple"])
     state = {"draft": draft,
