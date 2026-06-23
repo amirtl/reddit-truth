@@ -133,6 +133,30 @@ def test_revise_preserves_productive_subreddits(mocker):
     assert out["draft"].subreddits.index("kindle") < out["draft"].subreddits.index("amazondevices")
 
 
+def test_revise_dedups_subreddits_case_insensitively(mocker):
+    # Productive 'audiophile' + the LLM's 'Audiophile' must collapse to one.
+    mocker.patch("pipeline.agentic_product_agent.litellm.completion").return_value.choices[0].message.content = json.dumps(
+        {"canonical_id": "x", "canonical_name": "X", "category": "c",
+         "search_terms": ["X"], "subreddits": ["Audiophile"]})
+    agent = AgenticProductAgent(config=_FakeConfig(), client=FakeClient({}))
+    state = {"raw_query": "X", "iterations": 0, "history": [],
+             "draft": ProductInfo("x", "X", "c", ["X"], ["audiophile"]),
+             "validation": {"subreddits": {"audiophile": 5}, "noisy_terms": []}}
+    out = agent._revise(state)
+    lowered = [s.lower() for s in out["draft"].subreddits]
+    assert lowered.count("audiophile") == 1
+
+
+def test_finalize_dedups_subreddits_case_insensitively():
+    draft = ProductInfo("x", "X", "c", ["X"], ["NintendoSwitch", "nintendoswitch", "gaming"])
+    state = {"draft": draft, "iterations": 1, "raw_query": "X", "history": [],
+             "validation": {"subreddits": {"NintendoSwitch": 8, "nintendoswitch": 5, "gaming": 3},
+                            "noisy_terms": []}}
+    out = AgenticProductAgent(config=None, client=FakeClient({}))._finalize(state)
+    lowered = [s.lower() for s in out["draft"].subreddits]
+    assert lowered.count("nintendoswitch") == 1
+
+
 def test_run_self_corrects_dead_subreddits(mocker):
     # propose gives a fake subreddit; revise gives two real ones; the graph should
     # loop once and finalize with the real subreddits, dropping the fake one.

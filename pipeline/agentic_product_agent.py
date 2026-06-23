@@ -40,6 +40,20 @@ def decide(state: AgentState) -> str:
     return "revise"
 
 
+def _dedup_ci(subreddits: list[str]) -> list[str]:
+    """Drop case-insensitive duplicate subreddits (Arctic-Shift is
+    case-insensitive, so 'Audiophile' and 'audiophile' are the same place),
+    keeping the first occurrence."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for s in subreddits:
+        key = s.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(s)
+    return out
+
+
 class AgenticProductAgent:
     """Self-correcting product understanding as a LangGraph agent.
 
@@ -104,7 +118,7 @@ class AgenticProductAgent:
         # a fresh list that drops them, losing hard-won progress (Kindle's
         # intermittent 0-comment runs). Productive ones go first.
         productive = [s for s, n in v["subreddits"].items() if isinstance(n, int) and n > 0]
-        draft.subreddits = list(dict.fromkeys(productive + draft.subreddits))
+        draft.subreddits = _dedup_ci(productive + draft.subreddits)
         return {"draft": draft, "iterations": state["iterations"] + 1,
                 "history": [f"revised: {draft.subreddits}"]}
 
@@ -136,5 +150,5 @@ class AgenticProductAgent:
         subs = state["validation"]["subreddits"]
         productive = [s for s in draft.subreddits if isinstance(subs.get(s), int) and subs[s] > 0]
         unknown = [s for s in draft.subreddits if subs.get(s) is None]
-        draft.subreddits = (productive + unknown) or draft.subreddits
+        draft.subreddits = _dedup_ci(productive + unknown) or draft.subreddits
         return {"draft": draft}
