@@ -115,6 +115,24 @@ def test_revise_increments_iterations_and_reparses(mocker):
     assert out["draft"].subreddits == ["good"]
 
 
+def test_revise_preserves_productive_subreddits(mocker):
+    # The LLM may return a fresh list that drops already-productive subreddits.
+    # revise must keep validated-productive subs (don't lose progress) — the bug
+    # behind Kindle's intermittent 0-comment runs.
+    mocker.patch("pipeline.agentic_product_agent.litellm.completion").return_value.choices[0].message.content = json.dumps(
+        {"canonical_id": "k", "canonical_name": "K", "category": "c",
+         "search_terms": ["K"], "subreddits": ["amazondevices"]})
+    agent = AgenticProductAgent(config=_FakeConfig(), client=FakeClient({}))
+    state = {"raw_query": "Kindle", "iterations": 0, "history": [],
+             "draft": ProductInfo("k", "K", "c", ["K"], ["kindle", "ebooks", "amazondevices"]),
+             "validation": {"subreddits": {"kindle": 7, "ebooks": 4, "amazondevices": 0},
+                            "noisy_terms": []}}
+    out = agent._revise(state)
+    assert "kindle" in out["draft"].subreddits      # productive kept
+    assert "ebooks" in out["draft"].subreddits
+    assert out["draft"].subreddits.index("kindle") < out["draft"].subreddits.index("amazondevices")
+
+
 def test_run_self_corrects_dead_subreddits(mocker):
     # propose gives a fake subreddit; revise gives two real ones; the graph should
     # loop once and finalize with the real subreddits, dropping the fake one.

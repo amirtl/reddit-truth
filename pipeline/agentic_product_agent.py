@@ -100,6 +100,11 @@ class AgenticProductAgent:
             response_format={"type": "json_object"},
         )
         draft = parse_product_info(json.loads(resp.choices[0].message.content), state["raw_query"])
+        # Keep subreddits already validated as productive — the LLM often returns
+        # a fresh list that drops them, losing hard-won progress (Kindle's
+        # intermittent 0-comment runs). Productive ones go first.
+        productive = [s for s, n in v["subreddits"].items() if isinstance(n, int) and n > 0]
+        draft.subreddits = list(dict.fromkeys(productive + draft.subreddits))
         return {"draft": draft, "iterations": state["iterations"] + 1,
                 "history": [f"revised: {draft.subreddits}"]}
 
