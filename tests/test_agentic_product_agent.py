@@ -1,4 +1,26 @@
-from pipeline.agentic_product_agent import decide, MAX_ITERS
+from pipeline.agentic_product_agent import decide, MAX_ITERS, AgenticProductAgent
+from pipeline.types import ProductInfo
+
+
+class FakeClient:
+    """Models Arctic-Shift: dead subreddits return [] for any term; productive
+    ones return N on-topic titles for a specific term, and a caller-supplied
+    mixed list for a 'noisy' generic term."""
+
+    def __init__(self, productive, noisy=None):
+        self.productive = productive          # {subreddit: n_threads}
+        self.noisy = noisy or {}              # {term: [titles]}
+
+    def post_titles(self, subreddit, query, limit=10):
+        if self.productive.get(subreddit, 0) == 0:
+            return []
+        if query in self.noisy:
+            return self.noisy[query]
+        return [f"{query} thread {i}" for i in range(self.productive[subreddit])]
+
+
+def _agent(client):
+    return AgenticProductAgent(config=None, client=client)
 
 
 def _state(subs, noisy=None, iters=0):
@@ -26,3 +48,27 @@ def test_decide_finalizes_at_iteration_cap_even_if_weak():
 def test_unknown_subreddits_dont_count_as_productive():
     # None == couldn't check; must not be treated as productive
     assert decide(_state({"a": None, "b": None})) == "revise"
+
+
+def test_validate_flags_dead_subreddits_and_noisy_terms():
+    draft = ProductInfo("x", "AirPods Pro 2", "earbuds",
+                        ["AirPods Pro 2", "Pro 2"], ["apple", "fake"])
+    client = FakeClient(
+        productive={"apple": 5, "fake": 0},
+        noisy={"Pro 2": ["AirPods Pro 2 x", "Surface Pro 2", "iPad Pro 2", "Galaxy Pro 2"]},
+    )
+    out = _agent(client)._validate({"draft": draft, "validation": {}, "iterations": 0,
+                                    "raw_query": "AirPods Pro 2", "history": []})
+    assert out["validation"]["subreddits"]["fake"] == 0
+    assert out["validation"]["subreddits"]["apple"] > 0
+    assert "Pro 2" in out["validation"]["noisy_terms"]
+
+
+def test_finalize_keeps_productive_subreddits_first():
+    draft = ProductInfo("x", "X", "c", ["X"], ["fake", "apple"])
+    state = {"draft": draft,
+             "validation": {"subreddits": {"fake": 0, "apple": 8}, "noisy_terms": []},
+             "iterations": 1, "raw_query": "X", "history": []}
+    out = _agent(FakeClient({}))._finalize(state)
+    assert out["draft"].subreddits[0] == "apple"   # productive first
+    assert "fake" not in out["draft"].subreddits    # dead dropped
