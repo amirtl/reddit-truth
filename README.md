@@ -16,8 +16,8 @@ User query: "Sony WH-1000XM5"
         │
         ▼
 ┌─────────────────────────┐
-│  Product Understanding  │  LLM resolves query → canonical product + subreddits
-│  Agent                  │
+│  Product Understanding  │  LangGraph agent: LLM proposes → validates against
+│  Agent (agentic)        │  Arctic-Shift → self-corrects → canonical product
 └──────────┬──────────────┘
            │
            ▼
@@ -54,6 +54,31 @@ User query: "Sony WH-1000XM5"
            ▼
    Structured output → cached → served via REST API
 ```
+
+### Agentic product understanding
+
+The first stage is a self-correcting [LangGraph](https://langchain-ai.github.io/langgraph/)
+agent rather than a single LLM call. Small local models invent subreddits that
+don't exist (which silently zeroes recall, since Arctic-Shift only searches
+*within* subreddits) and emit generic search terms. The agent grounds the LLM's
+guesses in reality:
+
+```
+propose ─► validate ─► (decide) ─► finalize
+              ▲             │
+              └─── revise ◄─┘   (loop, capped)
+```
+
+- **propose** — the LLM drafts a product (id, terms, subreddits)
+- **validate** — two tools check every subreddit and term against the live
+  Arctic-Shift archive (does this subreddit actually contain product threads? is
+  this term too generic?)
+- **decide** — a conditional edge: enough productive subreddits and clean terms →
+  finalize; otherwise feed the findings back to **revise** and loop (with an
+  iteration cap, so it degrades gracefully instead of spinning).
+
+See `docs/superpowers/specs/2026-06-23-agentic-product-understanding-design.md`
+for the design and the LangGraph concepts it uses.
 
 ---
 
