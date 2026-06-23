@@ -1,7 +1,7 @@
 import json
 import pytest
 from pipeline.config import AppConfig, LLMConfig, EmbeddingConfig
-from pipeline.product_agent import ProductUnderstandingAgent
+from pipeline.product_agent import ProductUnderstandingAgent, parse_product_info
 from pipeline.types import ProductInfo
 
 
@@ -115,3 +115,10 @@ def test_run_uses_configured_model(config, mocker):
 
     call_args = mock_completion.call_args
     assert call_args.kwargs["model"] == "ollama/llama3.2"
+
+
+def test_parse_product_info_keeps_query_and_drops_empty():
+    info = parse_product_info(
+        {"canonical_name": "X", "search_terms": [], "subreddits": ["a", ""]}, "My Query")
+    assert "My Query" in info.search_terms          # raw query always present
+    assert info.subreddits == ["a"]                  # empties dropped

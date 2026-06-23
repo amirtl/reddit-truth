@@ -9,6 +9,24 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "product"
 
 
+def parse_product_info(data: dict, raw_query: str) -> ProductInfo:
+    """Defensive parse of the LLM's JSON into a ProductInfo. Shared by the
+    single-call agent and the agentic revise node, so both apply the same
+    guards: keep the raw query as a search term, drop empty entries, never crash."""
+    canonical_name = data.get("canonical_name") or raw_query
+    search_terms = [t for t in (data.get("search_terms") or []) if isinstance(t, str) and t.strip()]
+    if raw_query not in search_terms:
+        search_terms.insert(0, raw_query)
+    subreddits = [s for s in (data.get("subreddits") or []) if isinstance(s, str) and s.strip()]
+    return ProductInfo(
+        canonical_id=data.get("canonical_id") or _slug(canonical_name),
+        canonical_name=canonical_name,
+        category=data.get("category") or "",
+        search_terms=search_terms,
+        subreddits=subreddits,
+    )
+
+
 class ProductUnderstandingAgent:
     def __init__(self, config: AppConfig):
         self.model = config.llms.product_understanding
@@ -36,21 +54,4 @@ Return only valid JSON, no explanation, no markdown."""
             response_format={"type": "json_object"},
         )
         data = json.loads(response.choices[0].message.content)
-
-        # Defensive: the model (especially a small local one) can omit keys,
-        # return empty lists, or even answer for the wrong product. Never crash,
-        # always keep the user's own query as a search term so we don't drift
-        # onto a different product, and guarantee non-empty terms.
-        canonical_name = data.get("canonical_name") or raw_query
-        search_terms = [t for t in (data.get("search_terms") or []) if isinstance(t, str) and t.strip()]
-        if raw_query not in search_terms:
-            search_terms.insert(0, raw_query)
-        subreddits = [s for s in (data.get("subreddits") or []) if isinstance(s, str) and s.strip()]
-
-        return ProductInfo(
-            canonical_id=data.get("canonical_id") or _slug(canonical_name),
-            canonical_name=canonical_name,
-            category=data.get("category") or "",
-            search_terms=search_terms,
-            subreddits=subreddits,
-        )
+        return parse_product_info(data, raw_query)
