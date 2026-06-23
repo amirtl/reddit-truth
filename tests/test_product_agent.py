@@ -1,7 +1,7 @@
 import json
 import pytest
 from pipeline.config import AppConfig, LLMConfig, EmbeddingConfig
-from pipeline.product_agent import ProductUnderstandingAgent, parse_product_info
+from pipeline.product_agent import ProductUnderstandingAgent, parse_product_info, refine_search_terms
 from pipeline.types import ProductInfo
 
 
@@ -122,3 +122,34 @@ def test_parse_product_info_keeps_query_and_drops_empty():
         {"canonical_name": "X", "search_terms": [], "subreddits": ["a", ""]}, "My Query")
     assert "My Query" in info.search_terms          # raw query always present
     assert info.subreddits == ["a"]                  # empties dropped
+
+
+def test_refine_adds_bare_model_token_and_prioritizes_it():
+    # "Sony WH-1000XM5" only matches the full phrase; the bare "WH-1000XM5"
+    # matches titles that omit "Sony" — far better recall, so it goes first.
+    out = refine_search_terms(["Sony WH-1000XM5"])
+    assert "WH-1000XM5" in out
+    assert out.index("WH-1000XM5") < out.index("Sony WH-1000XM5")
+
+
+def test_refine_drops_phrase_terms_but_keeps_identifiers():
+    out = refine_search_terms([
+        "Kindle Paperwhite", "best books for kindle paperwhite", "kindle paperwhite vs oasis",
+    ])
+    assert "Kindle Paperwhite" in out
+    assert "best books for kindle paperwhite" not in out   # >4 words
+    assert "kindle paperwhite vs oasis" not in out          # contains 'vs'
+
+
+def test_refine_dedupes_model_tokens():
+    out = refine_search_terms(["Dyson V15", "V15"])
+    assert out.count("V15") == 1
+    assert "Dyson V15" in out
+
+
+def test_parse_product_info_applies_refinement():
+    info = parse_product_info(
+        {"canonical_name": "X", "search_terms": ["Dyson V15", "best cordless vacuum 2023 V15"],
+         "subreddits": ["x"]}, "Dyson V15")
+    assert "V15" in info.search_terms                              # model token added
+    assert "best cordless vacuum 2023 V15" not in info.search_terms  # phrase dropped

@@ -88,7 +88,9 @@ class AgenticProductAgent:
             f'These subreddits had ZERO product threads (likely wrong or fake) — '
             f'replace them with real, active subreddits: {dead}.\n'
             f'These search terms are too generic (they matched off-topic posts) — '
-            f'make them specific: {v["noisy_terms"]}.\n'
+            f'replace them with SHORT, matchable identifiers: the bare model number '
+            f'or a common abbreviation (e.g. "WH-1000XM5", "XM5"), NOT descriptive '
+            f'phrases or questions: {v["noisy_terms"]}.\n'
             'Return the same JSON schema: canonical_id, canonical_name, category, '
             'search_terms, subreddits (no r/ prefix). Return only JSON.'
         )
