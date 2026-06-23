@@ -44,7 +44,7 @@ class PipelineRunner:
         comments = self.noise_filter.run(comments)
 
         report("extracting")
-        claims = self.aspect_extractor.run(comments)
+        claims = self.aspect_extractor.run(comments, product)
 
         # No aspects discussed → a valid outcome, not an error. Stop here and let
         # the caller tell the user "no opinions found" instead of doing empty work.

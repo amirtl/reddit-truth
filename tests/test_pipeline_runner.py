@@ -67,7 +67,8 @@ def test_data_flows_between_stages(mocker):
     ctx["product_agent"].run.assert_called_once_with("Sony WH-1000XM5")
     ctx["scraper"].run.assert_called_once_with(ctx["product"])
     ctx["noise_filter"].run.assert_called_once_with(ctx["comments"])
-    ctx["aspect_extractor"].run.assert_called_once_with(ctx["filtered"])
+    # extractor gets the product too, so it can ignore comparisons to other products
+    ctx["aspect_extractor"].run.assert_called_once_with(ctx["filtered"], ctx["product"])
     ctx["embedder_clusterer"].run.assert_called_once_with(ctx["claims"])
     # quantifier needs both clusters and the FILTERED comments (for trend dates)
     ctx["quantifier"].run.assert_called_once_with(ctx["clusters"], ctx["filtered"])

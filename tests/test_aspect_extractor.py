@@ -23,6 +23,33 @@ def make_comment(id, text):
     return RawComment(id, text, 10, datetime(2024, 1, 1), "headphones", "https://reddit.com")
 
 
+def make_product():
+    from pipeline.types import ProductInfo
+    return ProductInfo("samsung-q80d", "Samsung Q80D", "tv", ["Q80D", "Samsung Q80D"], ["samsung"])
+
+
+def test_prompt_targets_product_and_warns_on_comparisons(config, mocker):
+    m = mocker.patch("pipeline.aspect_extractor.litellm.completion")
+    m.return_value.choices[0].message.content = json.dumps({"claims": []})
+
+    AspectExtractor(config).run([make_comment("c1", "x")], product=make_product())
+
+    prompt = m.call_args.kwargs["messages"][0]["content"]
+    assert "Samsung Q80D" in prompt                      # target named
+    assert "only" in prompt.lower()                        # only the target
+    assert "different product" in prompt.lower()           # comparison guard
+
+
+def test_generic_prompt_when_no_product(config, mocker):
+    m = mocker.patch("pipeline.aspect_extractor.litellm.completion")
+    m.return_value.choices[0].message.content = json.dumps({"claims": []})
+
+    AspectExtractor(config).run([make_comment("c1", "x")])   # backward-compatible call
+
+    prompt = m.call_args.kwargs["messages"][0]["content"]
+    assert "TARGET product" not in prompt
+
+
 def test_extracts_claims_from_batch(config, mocker):
     mock_response = {"claims": [
         {"comment_id": "c1", "aspect": "battery life", "sentiment": "positive", "quote": "lasts 3 days"},
