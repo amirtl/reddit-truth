@@ -1,8 +1,12 @@
+import json
 import operator
 from typing import Annotated, TypedDict
 
+import litellm
+
 from pipeline.agent_tools import check_term_precision, validate_subreddit
 from pipeline.arctic_shift_client import ArcticShiftClient
+from pipeline.product_agent import ProductUnderstandingAgent, parse_product_info
 from pipeline.types import ProductInfo
 
 MAX_ITERS = 2
@@ -51,6 +55,34 @@ class AgenticProductAgent:
     def __init__(self, config, client: ArcticShiftClient | None = None):
         self.config = config
         self.client = client or ArcticShiftClient()
+
+    def _propose(self, state: AgentState) -> dict:
+        """Node: the LLM drafts a first ProductInfo (the old single-call agent)."""
+        draft = ProductUnderstandingAgent(self.config).run(state["raw_query"])
+        return {"draft": draft, "history": [f"proposed: {draft.subreddits}"]}
+
+    def _revise(self, state: AgentState) -> dict:
+        """Node: reflection — feed the validation failures back to the LLM so it
+        replaces dead subreddits and sharpens generic terms. Ticks iterations."""
+        v = state["validation"]
+        dead = [s for s, n in v["subreddits"].items() if n == 0]
+        prompt = (
+            f'Improve product understanding for: "{state["raw_query"]}".\n'
+            f'These subreddits had ZERO product threads (likely wrong or fake) — '
+            f'replace them with real, active subreddits: {dead}.\n'
+            f'These search terms are too generic (they matched off-topic posts) — '
+            f'make them specific: {v["noisy_terms"]}.\n'
+            'Return the same JSON schema: canonical_id, canonical_name, category, '
+            'search_terms, subreddits (no r/ prefix). Return only JSON.'
+        )
+        resp = litellm.completion(
+            model=self.config.llms.product_understanding,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+        )
+        draft = parse_product_info(json.loads(resp.choices[0].message.content), state["raw_query"])
+        return {"draft": draft, "iterations": state["iterations"] + 1,
+                "history": [f"revised: {draft.subreddits}"]}
 
     def _validate(self, state: AgentState) -> dict:
         """Node: run both tools over the current draft, write findings + a log."""

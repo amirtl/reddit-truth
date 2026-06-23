@@ -1,5 +1,12 @@
+import json
+
 from pipeline.agentic_product_agent import decide, MAX_ITERS, AgenticProductAgent
 from pipeline.types import ProductInfo
+
+
+class _FakeConfig:
+    class llms:
+        product_understanding = "ollama/gemma2:9b"
 
 
 class FakeClient:
@@ -72,3 +79,25 @@ def test_finalize_keeps_productive_subreddits_first():
     out = _agent(FakeClient({}))._finalize(state)
     assert out["draft"].subreddits[0] == "apple"   # productive first
     assert "fake" not in out["draft"].subreddits    # dead dropped
+
+
+def test_propose_uses_product_understanding_agent(mocker):
+    mocker.patch("pipeline.product_agent.litellm.completion").return_value.choices[0].message.content = json.dumps(
+        {"canonical_id": "p", "canonical_name": "P", "category": "c",
+         "search_terms": ["P"], "subreddits": ["sub"]})
+    agent = AgenticProductAgent(config=_FakeConfig(), client=FakeClient({}))
+    out = agent._propose({"raw_query": "P", "history": []})
+    assert out["draft"].subreddits == ["sub"]
+
+
+def test_revise_increments_iterations_and_reparses(mocker):
+    mocker.patch("pipeline.agentic_product_agent.litellm.completion").return_value.choices[0].message.content = json.dumps(
+        {"canonical_id": "p", "canonical_name": "P", "category": "c",
+         "search_terms": ["P"], "subreddits": ["good"]})
+    agent = AgenticProductAgent(config=_FakeConfig(), client=FakeClient({}))
+    state = {"raw_query": "P", "iterations": 0, "history": [],
+             "draft": ProductInfo("p", "P", "c", ["P"], ["bad"]),
+             "validation": {"subreddits": {"bad": 0}, "noisy_terms": []}}
+    out = agent._revise(state)
+    assert out["iterations"] == 1
+    assert out["draft"].subreddits == ["good"]
