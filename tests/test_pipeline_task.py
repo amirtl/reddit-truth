@@ -5,7 +5,8 @@ from pipeline.config import AppConfig, LLMConfig, EmbeddingConfig, ScraperConfig
 from pipeline.types import ProductInfo, AspectSummary, PipelineResult
 from pipeline.arctic_shift_scraper import ArcticShiftScraper
 import tasks.pipeline_task as task_module
-from tasks.pipeline_task import run_pipeline_task, NO_OPINIONS_MESSAGE, _build_scraper
+from tasks.pipeline_task import run_pipeline_task, NO_OPINIONS_MESSAGE, _build_scraper, build_runner
+from pipeline.agentic_product_agent import AgenticProductAgent
 
 
 def make_config(backend):
@@ -172,3 +173,8 @@ def test_progress_callback_writes_running_status(mocker):
     mocker.patch.object(task_module, "load_config", return_value=Mock())
 
     run_pipeline_task("job-1")
+
+
+def test_build_runner_uses_agentic_product_agent():
+    runner = build_runner(make_config("arctic_shift"))
+    assert isinstance(runner.product_agent, AgenticProductAgent)

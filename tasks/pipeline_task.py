@@ -4,7 +4,7 @@ from django.utils import timezone
 from core.models import Job, Product, AspectSummary as AspectSummaryModel
 from pipeline.config import load_config
 from pipeline.runner import PipelineRunner
-from pipeline.product_agent import ProductUnderstandingAgent
+from pipeline.agentic_product_agent import AgenticProductAgent
 from pipeline.scraper import RedditScraper
 from pipeline.arctic_shift_scraper import ArcticShiftScraper
 from pipeline.ports import Scraper
@@ -40,7 +40,7 @@ def build_runner(config) -> PipelineRunner:
     Exercised end-to-end by the smoke test rather than unit tests.
     """
     return PipelineRunner(
-        product_agent=ProductUnderstandingAgent(config),
+        product_agent=AgenticProductAgent(config),
         scraper=_build_scraper(config),
         noise_filter=NoiseFilter(),
         aspect_extractor=AspectExtractor(config),
