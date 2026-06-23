@@ -101,3 +101,39 @@ def test_revise_increments_iterations_and_reparses(mocker):
     out = agent._revise(state)
     assert out["iterations"] == 1
     assert out["draft"].subreddits == ["good"]
+
+
+def test_run_self_corrects_dead_subreddits(mocker):
+    # propose gives a fake subreddit; revise gives two real ones; the graph should
+    # loop once and finalize with the real subreddits, dropping the fake one.
+    agent = AgenticProductAgent(config=_FakeConfig(), client=None)
+    mocker.patch.object(agent, "_propose", return_value={
+        "draft": ProductInfo("x", "X", "c", ["X"], ["FakeSub"]), "history": []})
+    mocker.patch.object(agent, "_revise", return_value={
+        "draft": ProductInfo("x", "X", "c", ["X"], ["realsub", "realsub2"]),
+        "iterations": 1, "history": []})
+
+    def fake_validate(state):
+        subs = {s: (0 if s == "FakeSub" else 5) for s in state["draft"].subreddits}
+        return {"validation": {"subreddits": subs, "noisy_terms": []}, "history": []}
+    mocker.patch.object(agent, "_validate", side_effect=fake_validate)
+
+    result = agent.run("X")
+    assert "realsub" in result.subreddits
+    assert "FakeSub" not in result.subreddits
+
+
+def test_run_terminates_at_cap(mocker):
+    # the LLM is stubborn — always the same dead subreddit. Must not hang; must
+    # finalize non-empty (graceful degradation).
+    agent = AgenticProductAgent(config=_FakeConfig(), client=None)
+    mocker.patch.object(agent, "_propose", return_value={
+        "draft": ProductInfo("x", "X", "c", ["X"], ["FakeSub"]), "history": []})
+    mocker.patch.object(agent, "_revise", side_effect=lambda s: {
+        "draft": ProductInfo("x", "X", "c", ["X"], ["FakeSub"]),
+        "iterations": s["iterations"] + 1, "history": []})
+    mocker.patch.object(agent, "_validate", return_value={
+        "validation": {"subreddits": {"FakeSub": 0}, "noisy_terms": []}, "history": []})
+
+    result = agent.run("X")
+    assert result.subreddits   # never empty

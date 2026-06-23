@@ -3,6 +3,7 @@ import operator
 from typing import Annotated, TypedDict
 
 import litellm
+from langgraph.graph import END, START, StateGraph
 
 from pipeline.agent_tools import check_term_precision, validate_subreddit
 from pipeline.arctic_shift_client import ArcticShiftClient
@@ -55,6 +56,27 @@ class AgenticProductAgent:
     def __init__(self, config, client: ArcticShiftClient | None = None):
         self.config = config
         self.client = client or ArcticShiftClient()
+        self._graph = self._build_graph()
+
+    def _build_graph(self):
+        g = StateGraph(AgentState)
+        # Lambda indirection so dispatch happens at runtime (and patches in tests
+        # take effect) rather than capturing the bound method at build time.
+        g.add_node("propose", lambda s: self._propose(s))
+        g.add_node("validate", lambda s: self._validate(s))
+        g.add_node("revise", lambda s: self._revise(s))
+        g.add_node("finalize", lambda s: self._finalize(s))
+        g.add_edge(START, "propose")
+        g.add_edge("propose", "validate")
+        g.add_conditional_edges("validate", decide,
+                                {"revise": "revise", "finalize": "finalize"})
+        g.add_edge("revise", "validate")        # the loop back (the cycle)
+        g.add_edge("finalize", END)
+        return g.compile()
+
+    def run(self, raw_query: str) -> ProductInfo:
+        final = self._graph.invoke({"raw_query": raw_query, "iterations": 0, "history": []})
+        return final["draft"]
 
     def _propose(self, state: AgentState) -> dict:
         """Node: the LLM drafts a first ProductInfo (the old single-call agent)."""
